@@ -161,7 +161,9 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                         const SizedBox(width: 12),
                         Expanded(
                           child: Text(
-                            currentIsActive ? 'Account Active' : 'Account Disabled',
+                            currentIsActive
+                                ? 'Account Active'
+                                : 'Account Disabled',
                             style: TextStyle(
                               color: currentIsActive
                                   ? AppColors.softGreen

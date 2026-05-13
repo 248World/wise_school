@@ -46,6 +46,49 @@ class DatabaseService {
     });
   }
 
+  Future<List<Map<String, dynamic>>> getClasses() async {
+    final snapshot = await _firestore
+        .collection('classes')
+        .orderBy('createdAt', descending: true)
+        .get();
+
+    return snapshot.docs.map((doc) {
+      final data = doc.data();
+
+      return {
+        'id': doc.id,
+        'className': data['className'] ?? '',
+        'level': data['level'] ?? '',
+        'teacherId': data['teacherId'] ?? '',
+        'teacherName': data['teacherName'] ?? '',
+        'studentCount': data['studentCount'] ?? 0,
+        'createdAt': data['createdAt'],
+      };
+    }).toList();
+  }
+
+  Future<void> addClass({
+    required String className,
+    required String level,
+    required String teacherId,
+    required String teacherName,
+  }) async {
+    await _firestore.collection('classes').add({
+      'className': className.trim(),
+      'level': level.trim(),
+      'teacherId': teacherId,
+      'teacherName': teacherName,
+      'studentCount': 0,
+      'createdAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  Future<void> deleteClass({
+    required String classId,
+  }) async {
+    await _firestore.collection('classes').doc(classId).delete();
+  }
+
   Future<void> saveAttendance({
     required String classId,
     required List<Map<String, dynamic>> attendanceData,
