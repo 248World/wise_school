@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+
 import '../../core/constants/app_colors.dart';
+import '../../providers/auth_provider.dart';
 import 'role_router_screen.dart';
 import 'register_screen.dart';
 import 'forgot_password_screen.dart';
@@ -12,56 +15,53 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  final fullNameController = TextEditingController();
   final emailController = TextEditingController();
   final passwordController = TextEditingController();
 
-  String selectedRole = 'Student';
-
-  final List<String> roles = [
-    'Admin',
-    'Teacher',
-    'Student',
-    'Parent',
-  ];
-
   @override
   void dispose() {
-    fullNameController.dispose();
     emailController.dispose();
     passwordController.dispose();
     super.dispose();
   }
 
-  String getDisplayName() {
-    final fullName = fullNameController.text.trim();
-
-    if (fullName.isNotEmpty) {
-      return fullName;
-    }
-
+  Future<void> loginUser() async {
     final email = emailController.text.trim();
+    final password = passwordController.text.trim();
 
-    if (email.contains('@')) {
-      return email.split('@').first;
+    if (email.isEmpty || password.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please enter email and password'),
+        ),
+      );
+      return;
     }
 
-    if (email.isNotEmpty) {
-      return email;
+    final authProvider = context.read<AuthProvider>();
+
+    final success = await authProvider.login(
+      email: email,
+      password: password,
+    );
+
+    if (!mounted) return;
+
+    if (!success) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(authProvider.errorMessage ?? 'Login failed'),
+        ),
+      );
+      return;
     }
-
-    return selectedRole;
-  }
-
-  void loginUser() {
-    final displayName = getDisplayName();
 
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(
         builder: (_) => RoleRouterScreen(
-          role: selectedRole,
-          displayName: displayName,
+          role: authProvider.role ?? 'Student',
+          displayName: authProvider.fullName ?? 'User',
         ),
       ),
     );
@@ -69,6 +69,8 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final authProvider = context.watch<AuthProvider>();
+
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
@@ -81,7 +83,6 @@ class _LoginScreenState extends State<LoginScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const SizedBox(height: 30),
-
               const Text(
                 'Welcome Back',
                 style: TextStyle(
@@ -90,9 +91,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   color: AppColors.textDark,
                 ),
               ),
-
               const SizedBox(height: 8),
-
               const Text(
                 'Login to continue to Wise School.',
                 style: TextStyle(
@@ -100,31 +99,16 @@ class _LoginScreenState extends State<LoginScreen> {
                   color: AppColors.textGrey,
                 ),
               ),
-
               const SizedBox(height: 35),
-
-              TextField(
-                controller: fullNameController,
-                textCapitalization: TextCapitalization.words,
-                decoration: const InputDecoration(
-                  labelText: 'Full Name',
-                  prefixIcon: Icon(Icons.person_outline),
-                ),
-              ),
-
-              const SizedBox(height: 16),
-
               TextField(
                 controller: emailController,
                 keyboardType: TextInputType.emailAddress,
                 decoration: const InputDecoration(
-                  labelText: 'Email or ID',
+                  labelText: 'Email',
                   prefixIcon: Icon(Icons.email_outlined),
                 ),
               ),
-
               const SizedBox(height: 16),
-
               TextField(
                 controller: passwordController,
                 obscureText: true,
@@ -133,57 +117,41 @@ class _LoginScreenState extends State<LoginScreen> {
                   prefixIcon: Icon(Icons.lock_outline),
                 ),
               ),
-
-              const SizedBox(height: 16),
-
-              DropdownButtonFormField<String>(
-                initialValue: selectedRole,
-                decoration: const InputDecoration(
-                  labelText: 'Select Role',
-                  prefixIcon: Icon(Icons.person_outline),
-                ),
-                items: roles.map((role) {
-                  return DropdownMenuItem<String>(
-                    value: role,
-                    child: Text(role),
-                  );
-                }).toList(),
-                onChanged: (value) {
-                  setState(() {
-                    selectedRole = value!;
-                  });
-                },
-              ),
-
               const SizedBox(height: 26),
-
               SizedBox(
                 width: double.infinity,
                 height: 52,
                 child: ElevatedButton(
-                  onPressed: loginUser,
-                  child: const Text('Login'),
+                  onPressed: authProvider.isLoading ? null : loginUser,
+                  child: authProvider.isLoading
+                      ? const SizedBox(
+                          height: 22,
+                          width: 22,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: AppColors.white,
+                          ),
+                        )
+                      : const Text('Login'),
                 ),
               ),
-
               const SizedBox(height: 12),
-
               Center(
                 child: TextButton(
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => const ForgotPasswordScreen(),
-                      ),
-                    );
-                  },
+                  onPressed: authProvider.isLoading
+                      ? null
+                      : () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const ForgotPasswordScreen(),
+                            ),
+                          );
+                        },
                   child: const Text('Forgot Password?'),
                 ),
               ),
-
               const SizedBox(height: 10),
-
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
@@ -192,14 +160,16 @@ class _LoginScreenState extends State<LoginScreen> {
                     style: TextStyle(color: AppColors.textGrey),
                   ),
                   TextButton(
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => const RegisterScreen(),
-                        ),
-                      );
-                    },
+                    onPressed: authProvider.isLoading
+                        ? null
+                        : () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const RegisterScreen(),
+                              ),
+                            );
+                          },
                     child: const Text('Register'),
                   ),
                 ],

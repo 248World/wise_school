@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+
 import '../../core/constants/app_colors.dart';
+import '../../providers/auth_provider.dart';
 import 'login_screen.dart';
+import 'role_router_screen.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -33,8 +37,36 @@ class _RegisterScreenState extends State<RegisterScreen> {
     super.dispose();
   }
 
-  void registerUser() {
-    if (passwordController.text != confirmPasswordController.text) {
+  Future<void> registerUser() async {
+    final fullName = fullNameController.text.trim();
+    final email = emailController.text.trim();
+    final phone = phoneController.text.trim();
+    final password = passwordController.text.trim();
+    final confirmPassword = confirmPasswordController.text.trim();
+
+    if (fullName.isEmpty ||
+        email.isEmpty ||
+        phone.isEmpty ||
+        password.isEmpty ||
+        confirmPassword.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please fill in all fields'),
+        ),
+      );
+      return;
+    }
+
+    if (password.length < 6) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Password must be at least 6 characters'),
+        ),
+      );
+      return;
+    }
+
+    if (password != confirmPassword) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Passwords do not match'),
@@ -43,22 +75,42 @@ class _RegisterScreenState extends State<RegisterScreen> {
       return;
     }
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Account created successfully'),
-      ),
+    final authProvider = context.read<AuthProvider>();
+
+    final success = await authProvider.register(
+      fullName: fullName,
+      email: email,
+      phone: phone,
+      password: password,
+      role: selectedRole,
     );
+
+    if (!mounted) return;
+
+    if (!success) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(authProvider.errorMessage ?? 'Registration failed'),
+        ),
+      );
+      return;
+    }
 
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(
-        builder: (_) => const LoginScreen(),
+        builder: (_) => RoleRouterScreen(
+          role: authProvider.role ?? selectedRole,
+          displayName: authProvider.fullName ?? fullName,
+        ),
       ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
+    final authProvider = context.watch<AuthProvider>();
+
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
@@ -78,9 +130,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   color: AppColors.textDark,
                 ),
               ),
-
               const SizedBox(height: 8),
-
               const Text(
                 'Create a student or parent account.',
                 style: TextStyle(
@@ -88,9 +138,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   color: AppColors.textGrey,
                 ),
               ),
-
               const SizedBox(height: 28),
-
               TextField(
                 controller: fullNameController,
                 decoration: const InputDecoration(
@@ -98,9 +146,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   prefixIcon: Icon(Icons.person_outline),
                 ),
               ),
-
               const SizedBox(height: 16),
-
               TextField(
                 controller: emailController,
                 keyboardType: TextInputType.emailAddress,
@@ -109,9 +155,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   prefixIcon: Icon(Icons.email_outlined),
                 ),
               ),
-
               const SizedBox(height: 16),
-
               TextField(
                 controller: phoneController,
                 keyboardType: TextInputType.phone,
@@ -120,11 +164,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   prefixIcon: Icon(Icons.phone_outlined),
                 ),
               ),
-
               const SizedBox(height: 16),
-
               DropdownButtonFormField<String>(
-                value: selectedRole,
+                initialValue: selectedRole,
                 decoration: const InputDecoration(
                   labelText: 'Select Role',
                   prefixIcon: Icon(Icons.badge_outlined),
@@ -141,9 +183,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   });
                 },
               ),
-
               const SizedBox(height: 16),
-
               TextField(
                 controller: passwordController,
                 obscureText: true,
@@ -152,9 +192,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   prefixIcon: Icon(Icons.lock_outline),
                 ),
               ),
-
               const SizedBox(height: 16),
-
               TextField(
                 controller: confirmPasswordController,
                 obscureText: true,
@@ -163,20 +201,25 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   prefixIcon: Icon(Icons.lock_reset_outlined),
                 ),
               ),
-
               const SizedBox(height: 28),
-
               SizedBox(
                 width: double.infinity,
                 height: 52,
                 child: ElevatedButton(
-                  onPressed: registerUser,
-                  child: const Text('Create Account'),
+                  onPressed: authProvider.isLoading ? null : registerUser,
+                  child: authProvider.isLoading
+                      ? const SizedBox(
+                          height: 22,
+                          width: 22,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: AppColors.white,
+                          ),
+                        )
+                      : const Text('Create Account'),
                 ),
               ),
-
               const SizedBox(height: 12),
-
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
@@ -185,14 +228,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     style: TextStyle(color: AppColors.textGrey),
                   ),
                   TextButton(
-                    onPressed: () {
-                      Navigator.pushReplacement(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => const LoginScreen(),
-                        ),
-                      );
-                    },
+                    onPressed: authProvider.isLoading
+                        ? null
+                        : () {
+                            Navigator.pushReplacement(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const LoginScreen(),
+                              ),
+                            );
+                          },
                     child: const Text('Login'),
                   ),
                 ],

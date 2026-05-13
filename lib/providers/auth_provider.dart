@@ -6,23 +6,34 @@ class AuthProvider extends ChangeNotifier {
 
   bool isLoading = false;
   String? errorMessage;
-  String? selectedRole;
+
+  String? userId;
+  String? fullName;
+  String? email;
+  String? phone;
+  String? role;
+
+  bool get isLoggedIn => userId != null;
 
   Future<bool> login({
     required String email,
     required String password,
-    required String role,
   }) async {
     try {
       isLoading = true;
       errorMessage = null;
-      selectedRole = role;
       notifyListeners();
 
-      await _authService.login(
+      final userData = await _authService.login(
         email: email,
         password: password,
       );
+
+      userId = userData['id'] ?? '';
+      fullName = userData['fullName'] ?? '';
+      this.email = userData['email'] ?? '';
+      phone = userData['phone'] ?? '';
+      role = userData['role'] ?? 'Student';
 
       isLoading = false;
       notifyListeners();
@@ -30,7 +41,7 @@ class AuthProvider extends ChangeNotifier {
       return true;
     } catch (error) {
       isLoading = false;
-      errorMessage = error.toString();
+      errorMessage = error.toString().replaceAll('Exception: ', '');
       notifyListeners();
 
       return false;
@@ -49,7 +60,7 @@ class AuthProvider extends ChangeNotifier {
       errorMessage = null;
       notifyListeners();
 
-      await _authService.register(
+      final userData = await _authService.register(
         fullName: fullName,
         email: email,
         phone: phone,
@@ -57,22 +68,79 @@ class AuthProvider extends ChangeNotifier {
         role: role,
       );
 
+      userId = userData['id'] ?? '';
+      this.fullName = userData['fullName'] ?? '';
+      this.email = userData['email'] ?? '';
+      this.phone = userData['phone'] ?? '';
+      this.role = userData['role'] ?? 'Student';
+
       isLoading = false;
       notifyListeners();
 
       return true;
     } catch (error) {
       isLoading = false;
-      errorMessage = error.toString();
+      errorMessage = error.toString().replaceAll('Exception: ', '');
       notifyListeners();
 
       return false;
     }
   }
 
+  Future<void> sendPasswordReset({
+    required String email,
+  }) async {
+    try {
+      isLoading = true;
+      errorMessage = null;
+      notifyListeners();
+
+      await _authService.sendPasswordReset(email: email);
+
+      isLoading = false;
+      notifyListeners();
+    } catch (error) {
+      isLoading = false;
+      errorMessage = error.toString().replaceAll('Exception: ', '');
+      notifyListeners();
+    }
+  }
+
+  Future<void> loadCurrentUser() async {
+    try {
+      isLoading = true;
+      errorMessage = null;
+      notifyListeners();
+
+      final userData = await _authService.getCurrentUserProfile();
+
+      if (userData != null) {
+        userId = userData['id'] ?? '';
+        fullName = userData['fullName'] ?? '';
+        email = userData['email'] ?? '';
+        phone = userData['phone'] ?? '';
+        role = userData['role'] ?? 'Student';
+      }
+
+      isLoading = false;
+      notifyListeners();
+    } catch (error) {
+      isLoading = false;
+      errorMessage = error.toString().replaceAll('Exception: ', '');
+      notifyListeners();
+    }
+  }
+
   Future<void> logout() async {
     await _authService.logout();
-    selectedRole = null;
+
+    userId = null;
+    fullName = null;
+    email = null;
+    phone = null;
+    role = null;
+    errorMessage = null;
+
     notifyListeners();
   }
 }

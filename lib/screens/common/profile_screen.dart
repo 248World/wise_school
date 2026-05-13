@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+
 import '../../core/constants/app_colors.dart';
+import '../../providers/auth_provider.dart';
+import '../auth/auth_choice_screen.dart';
 
 class ProfileScreen extends StatelessWidget {
   final String role;
@@ -11,6 +15,13 @@ class ProfileScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final authProvider = context.watch<AuthProvider>();
+
+    final displayName = authProvider.fullName ?? 'User';
+    final displayEmail = authProvider.email ?? 'No email';
+    final displayPhone = authProvider.phone ?? 'No phone';
+    final displayRole = authProvider.role ?? role;
+
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
@@ -22,7 +33,6 @@ class ProfileScreen extends StatelessWidget {
           child: Column(
             children: [
               const SizedBox(height: 20),
-
               Container(
                 height: 110,
                 width: 110,
@@ -36,57 +46,46 @@ class ProfileScreen extends StatelessWidget {
                   color: AppColors.primaryBlue,
                 ),
               ),
-
               const SizedBox(height: 20),
-
-              const Text(
-                'Varney D Fahnbulleh',
+              Text(
+                displayName,
                 textAlign: TextAlign.center,
-                style: TextStyle(
+                style: const TextStyle(
                   fontSize: 24,
                   fontWeight: FontWeight.bold,
                   color: AppColors.textDark,
                 ),
               ),
-
               const SizedBox(height: 6),
-
               Text(
-                role,
+                displayRole,
                 style: const TextStyle(
                   fontSize: 15,
                   color: AppColors.textGrey,
                 ),
               ),
-
               const SizedBox(height: 30),
-
               profileItem(
                 icon: Icons.email_outlined,
                 title: 'Email',
-                value: 'user@wiseschool.com',
+                value: displayEmail,
               ),
-
               profileItem(
                 icon: Icons.phone_outlined,
                 title: 'Phone',
-                value: '+212 600 000 000',
+                value: displayPhone,
               ),
-
               profileItem(
                 icon: Icons.badge_outlined,
                 title: 'Role',
-                value: role,
+                value: displayRole,
               ),
-
               profileItem(
                 icon: Icons.location_city_outlined,
                 title: 'School',
                 value: 'Wise School',
               ),
-
               const SizedBox(height: 30),
-
               SizedBox(
                 width: double.infinity,
                 height: 52,
@@ -96,9 +95,7 @@ class ProfileScreen extends StatelessWidget {
                   label: const Text('Edit Profile'),
                 ),
               ),
-
               const SizedBox(height: 14),
-
               SizedBox(
                 width: double.infinity,
                 height: 52,
@@ -110,8 +107,18 @@ class ProfileScreen extends StatelessWidget {
                       borderRadius: BorderRadius.circular(14),
                     ),
                   ),
-                  onPressed: () {
-                    Navigator.popUntil(context, (route) => route.isFirst);
+                  onPressed: () async {
+                    await context.read<AuthProvider>().logout();
+
+                    if (!context.mounted) return;
+
+                    Navigator.pushAndRemoveUntil(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const AuthChoiceScreen(),
+                      ),
+                      (route) => false,
+                    );
                   },
                   icon: const Icon(Icons.logout_outlined),
                   label: const Text('Logout'),
