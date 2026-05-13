@@ -201,6 +201,32 @@ class DatabaseService {
     await batch.commit();
   }
 
+  Future<List<Map<String, dynamic>>> getAttendanceByClass({
+    required String classId,
+  }) async {
+    final snapshot = await _firestore
+        .collection('attendance')
+        .where('classId', isEqualTo: classId)
+        .orderBy('createdAt', descending: true)
+        .get();
+
+    return snapshot.docs.map((doc) {
+      final data = doc.data();
+
+      return {
+        'id': doc.id,
+        'studentId': data['studentId'] ?? '',
+        'studentName': data['studentName'] ?? '',
+        'classId': data['classId'] ?? '',
+        'className': data['className'] ?? '',
+        'status': data['status'] ?? '',
+        'markedBy': data['markedBy'] ?? '',
+        'date': data['date'] ?? '',
+        'createdAt': data['createdAt'],
+      };
+    }).toList();
+  }
+
   Future<void> saveMarks({
     required String classId,
     required String subjectId,
