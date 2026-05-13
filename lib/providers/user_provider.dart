@@ -75,4 +75,29 @@ class UserProvider extends ChangeNotifier {
       notifyListeners();
     }
   }
+
+  Future<void> updateStudentParent({
+    required String userId,
+    required String parentId,
+    required String parentName,
+  }) async {
+    try {
+      await _databaseService.updateStudentParent(
+        userId: userId,
+        parentId: parentId,
+        parentName: parentName,
+      );
+
+      final index = users.indexWhere((user) => user['id'] == userId);
+
+      if (index != -1) {
+        users[index]['parentId'] = parentId;
+        users[index]['parentName'] = parentName;
+        notifyListeners();
+      }
+    } catch (error) {
+      errorMessage = error.toString().replaceAll('Exception: ', '');
+      notifyListeners();
+    }
+  }
 }

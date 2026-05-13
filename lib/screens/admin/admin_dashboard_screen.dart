@@ -1,17 +1,19 @@
 import 'package:flutter/material.dart';
+
 import '../../core/constants/app_colors.dart';
 import '../../widgets/dashboard_card.dart';
 import '../../widgets/module_card.dart';
 import '../../widgets/section_title.dart';
 import '../ai/ai_assistant_screen.dart';
-import '../ai/ai_report_generator_screen.dart';
 import '../ai/ai_performance_analysis_screen.dart';
-import '../common/profile_screen.dart';
+import '../ai/ai_report_generator_screen.dart';
 import '../common/announcements_screen.dart';
+import '../common/profile_screen.dart';
 import '../parent/fees_screen.dart';
-import 'user_management_screen.dart';
+import '../student/results_screen.dart';
 import 'class_management_screen.dart';
 import 'subject_management_screen.dart';
+import 'user_management_screen.dart';
 
 class AdminDashboardScreen extends StatelessWidget {
   final String displayName;
@@ -37,6 +39,10 @@ class AdminDashboardScreen extends StatelessWidget {
         'icon': Icons.menu_book_outlined,
       },
       {
+        'title': 'Student Results',
+        'icon': Icons.bar_chart_outlined,
+      },
+      {
         'title': 'Fees',
         'icon': Icons.payments_outlined,
       },
@@ -46,7 +52,7 @@ class AdminDashboardScreen extends StatelessWidget {
       },
       {
         'title': 'Reports',
-        'icon': Icons.bar_chart_outlined,
+        'icon': Icons.description_outlined,
       },
     ];
 
@@ -69,19 +75,15 @@ class AdminDashboardScreen extends StatelessWidget {
                   color: AppColors.textDark,
                 ),
               ),
-
               const SizedBox(height: 6),
-
               const Text(
-                'Manage school users, classes, reports, and AI insights.',
+                'Manage school users, classes, results, reports, and AI insights.',
                 style: TextStyle(
                   fontSize: 14,
                   color: AppColors.textGrey,
                 ),
               ),
-
               const SizedBox(height: 22),
-
               GridView.count(
                 crossAxisCount: 2,
                 shrinkWrap: true,
@@ -92,33 +94,29 @@ class AdminDashboardScreen extends StatelessWidget {
                 children: const [
                   DashboardCard(
                     title: 'Total Students',
-                    value: '450',
+                    value: 'Live',
                     icon: Icons.school_outlined,
                   ),
                   DashboardCard(
                     title: 'Total Teachers',
-                    value: '35',
+                    value: 'Live',
                     icon: Icons.person_outline,
                   ),
                   DashboardCard(
                     title: 'Total Classes',
-                    value: '18',
+                    value: 'Live',
                     icon: Icons.class_outlined,
                   ),
                   DashboardCard(
-                    title: 'Pending Reports',
-                    value: '07',
-                    icon: Icons.warning_amber_outlined,
+                    title: 'Results',
+                    value: 'Live',
+                    icon: Icons.bar_chart_outlined,
                   ),
                 ],
               ),
-
               const SizedBox(height: 26),
-
               const SectionTitle(title: 'School Modules'),
-
               const SizedBox(height: 14),
-
               GridView.builder(
                 itemCount: modules.length,
                 shrinkWrap: true,
@@ -130,11 +128,13 @@ class AdminDashboardScreen extends StatelessWidget {
                   childAspectRatio: 1.1,
                 ),
                 itemBuilder: (context, index) {
+                  final title = modules[index]['title'] as String;
+
                   return ModuleCard(
-                    title: modules[index]['title'] as String,
+                    title: title,
                     icon: modules[index]['icon'] as IconData,
                     onTap: () {
-                      if (modules[index]['title'] == 'User Management') {
+                      if (title == 'User Management') {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
@@ -143,7 +143,7 @@ class AdminDashboardScreen extends StatelessWidget {
                         );
                       }
 
-                      if (modules[index]['title'] == 'Class Management') {
+                      if (title == 'Class Management') {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
@@ -152,7 +152,7 @@ class AdminDashboardScreen extends StatelessWidget {
                         );
                       }
 
-                      if (modules[index]['title'] == 'Subject Management') {
+                      if (title == 'Subject Management') {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
@@ -161,7 +161,16 @@ class AdminDashboardScreen extends StatelessWidget {
                         );
                       }
 
-                      if (modules[index]['title'] == 'Fees') {
+                      if (title == 'Student Results') {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const ResultsScreen(),
+                          ),
+                        );
+                      }
+
+                      if (title == 'Fees') {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
@@ -170,7 +179,7 @@ class AdminDashboardScreen extends StatelessWidget {
                         );
                       }
 
-                      if (modules[index]['title'] == 'Announcements') {
+                      if (title == 'Announcements') {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
@@ -180,7 +189,7 @@ class AdminDashboardScreen extends StatelessWidget {
                         );
                       }
 
-                      if (modules[index]['title'] == 'Reports') {
+                      if (title == 'Reports') {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
@@ -192,13 +201,9 @@ class AdminDashboardScreen extends StatelessWidget {
                   );
                 },
               ),
-
               const SizedBox(height: 26),
-
               const SectionTitle(title: 'AI Tools'),
-
               const SizedBox(height: 14),
-
               InkWell(
                 borderRadius: BorderRadius.circular(20),
                 onTap: () {
@@ -240,9 +245,7 @@ class AdminDashboardScreen extends StatelessWidget {
                   ),
                 ),
               ),
-
               const SizedBox(height: 14),
-
               InkWell(
                 borderRadius: BorderRadius.circular(20),
                 onTap: () {
@@ -284,9 +287,7 @@ class AdminDashboardScreen extends StatelessWidget {
                   ),
                 ),
               ),
-
               const SizedBox(height: 14),
-
               InkWell(
                 borderRadius: BorderRadius.circular(20),
                 onTap: () {
@@ -328,22 +329,18 @@ class AdminDashboardScreen extends StatelessWidget {
                   ),
                 ),
               ),
-
               const SizedBox(height: 20),
             ],
           ),
         ),
       ),
-
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: 0,
         selectedItemColor: AppColors.primaryBlue,
         unselectedItemColor: AppColors.textGrey,
         type: BottomNavigationBarType.fixed,
         onTap: (index) {
-          if (index == 0) {
-            return;
-          }
+          if (index == 0) return;
 
           if (index == 1) {
             Navigator.push(
@@ -358,7 +355,7 @@ class AdminDashboardScreen extends StatelessWidget {
             Navigator.push(
               context,
               MaterialPageRoute(
-                builder: (_) => const AIReportGeneratorScreen(),
+                builder: (_) => const ResultsScreen(),
               ),
             );
           }
@@ -392,7 +389,7 @@ class AdminDashboardScreen extends StatelessWidget {
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.bar_chart_outlined),
-            label: 'Reports',
+            label: 'Results',
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.smart_toy_outlined),

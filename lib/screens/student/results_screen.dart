@@ -26,11 +26,13 @@ class _ResultsScreenState extends State<ResultsScreen> {
   List<Map<String, dynamic>> marks = [];
 
   String selectedClassId = '';
-  String selectedClassName = '';
   String selectedStudentId = '';
   String selectedStudentName = '';
 
-  bool isStudentRole = false;
+  String currentRole = 'Student';
+
+  bool get isStudent => currentRole == 'Student';
+  bool get isParent => currentRole == 'Parent';
 
   @override
   void initState() {
@@ -44,13 +46,15 @@ class _ResultsScreenState extends State<ResultsScreen> {
   Future<void> loadInitialData() async {
     try {
       final authProvider = context.read<AuthProvider>();
-      final currentRole = authProvider.role ?? 'Student';
+
+      currentRole = authProvider.role ?? 'Student';
       final currentUserId = authProvider.userId ?? '';
 
       setState(() {
         isLoading = true;
         errorMessage = null;
-        isStudentRole = currentRole == 'Student';
+        marks = [];
+        students = [];
       });
 
       if (currentRole == 'Student') {
@@ -65,6 +69,38 @@ class _ResultsScreenState extends State<ResultsScreen> {
 
         setState(() {
           marks = loadedMarks;
+          isLoading = false;
+        });
+
+        return;
+      }
+
+      if (currentRole == 'Parent') {
+        final loadedChildren = await databaseService.getStudentsByParent(
+          parentId: currentUserId,
+        );
+
+        if (!mounted) return;
+
+        students = loadedChildren;
+
+        if (students.length == 1) {
+          selectedStudentId = students.first['id'] ?? '';
+          selectedStudentName = students.first['fullName'] ?? '';
+
+          final loadedMarks = await databaseService.getMarksByStudent(
+            studentId: selectedStudentId,
+          );
+
+          setState(() {
+            marks = loadedMarks;
+            isLoading = false;
+          });
+
+          return;
+        }
+
+        setState(() {
           isLoading = false;
         });
 
@@ -149,14 +185,8 @@ class _ResultsScreenState extends State<ResultsScreen> {
   void selectClass(String? value) {
     if (value == null) return;
 
-    final selectedClass = classes.firstWhere(
-      (schoolClass) => schoolClass['id'] == value,
-      orElse: () => {},
-    );
-
     setState(() {
       selectedClassId = value;
-      selectedClassName = selectedClass['className'] ?? '';
     });
 
     loadStudentsByClass(value);
@@ -179,9 +209,7 @@ class _ResultsScreenState extends State<ResultsScreen> {
   }
 
   double calculateAverage() {
-    if (marks.isEmpty) {
-      return 0;
-    }
+    if (marks.isEmpty) return 0;
 
     double total = 0;
 
@@ -200,21 +228,115 @@ class _ResultsScreenState extends State<ResultsScreen> {
     return total / marks.length;
   }
 
-  String averageStatus(double average) {
-    if (average >= 16) return 'Excellent';
-    if (average >= 14) return 'Good';
-    if (average >= 10) return 'Pass';
-    return 'Needs Improvement';
+  String progressStatus(double average) {
+    if (average >= 16) return 'Excellent Progress';
+    if (average >= 14) return 'Good Progress';
+    if (average >= 10) return 'Average Progress';
+    return 'Needs Support';
   }
 
-  Color averageColor(double average) {
+  Color progressColor(double average) {
     if (average >= 14) return AppColors.softGreen;
     if (average >= 10) return Colors.orange;
     return AppColors.danger;
   }
 
+  Widget selectorSection() {
+    if (isStudent) {
+      return const SizedBox();
+    }
+
+    if (isParent) {
+      if (students.isEmpty) {
+        return const Text(
+          'No child is assigned to this parent account yet. Ask Admin to assign a student to this parent.',
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            color: AppColors.textGrey,
+            height: 1.5,
+          ),
+        );
+      }
+
+      if (students.length == 1) {
+        return Text(
+          'Child: $selectedStudentName',
+          style: const TextStyle(
+            color: AppColors.textDark,
+            fontWeight: FontWeight.bold,
+          ),
+        );
+      }
+
+      return DropdownButtonFormField<String>(
+        initialValue: selectedStudentId.isEmpty ? null : selectedStudentId,
+        decoration: const InputDecoration(
+          labelText: 'Select Child',
+          prefixIcon: Icon(Icons.child_care_outlined),
+        ),
+        items: students.map((student) {
+          return DropdownMenuItem<String>(
+            value: student['id'],
+            child: Text(student['fullName'] ?? 'Unknown Child'),
+          );
+        }).toList(),
+        onChanged: selectStudent,
+      );
+    }
+
+    return Column(
+      children: [
+        DropdownButtonFormField<String>(
+          initialValue: selectedClassId.isEmpty ? null : selectedClassId,
+          decoration: const InputDecoration(
+            labelText: 'Select Class',
+            prefixIcon: Icon(Icons.class_outlined),
+          ),
+          items: classes.map((schoolClass) {
+            return DropdownMenuItem<String>(
+              value: schoolClass['id'],
+              child: Text(
+                schoolClass['className'] ?? 'Unnamed Class',
+              ),
+            );
+          }).toList(),
+          onChanged: selectClass,
+        ),
+        const SizedBox(height: 14),
+        DropdownButtonFormField<String>(
+          initialValue: selectedStudentId.isEmpty ? null : selectedStudentId,
+          decoration: const InputDecoration(
+            labelText: 'Select Student',
+            prefixIcon: Icon(Icons.person_outline),
+          ),
+          items: students.map((student) {
+            return DropdownMenuItem<String>(
+              value: student['id'],
+              child: Text(
+                student['fullName'] ?? 'Unknown Student',
+              ),
+            );
+          }).toList(),
+          onChanged: students.isEmpty ? null : selectStudent,
+        ),
+        if (selectedClassId.isNotEmpty && students.isEmpty && !isLoadingStudents)
+          const Padding(
+            padding: EdgeInsets.only(top: 10),
+            child: Text(
+              'No students found for this class.',
+              style: TextStyle(
+                color: AppColors.textGrey,
+                fontSize: 13,
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
   Widget summaryCard() {
     final average = calculateAverage();
+    final status = progressStatus(average);
 
     return Container(
       padding: const EdgeInsets.all(18),
@@ -279,13 +401,13 @@ class _ResultsScreenState extends State<ResultsScreen> {
                 vertical: 7,
               ),
               decoration: BoxDecoration(
-                color: averageColor(average).withValues(alpha: 0.12),
+                color: progressColor(average).withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(20),
               ),
               child: Text(
-                averageStatus(average),
+                status,
                 style: TextStyle(
-                  color: averageColor(average),
+                  color: progressColor(average),
                   fontWeight: FontWeight.bold,
                   fontSize: 12,
                 ),
@@ -363,7 +485,7 @@ class _ResultsScreenState extends State<ResultsScreen> {
                 if (comment.toString().isNotEmpty) ...[
                   const SizedBox(height: 8),
                   Text(
-                    'Comment: $comment',
+                    'Teacher Comment: $comment',
                     style: const TextStyle(
                       color: AppColors.textGrey,
                       height: 1.4,
@@ -411,63 +533,12 @@ class _ResultsScreenState extends State<ResultsScreen> {
     );
   }
 
-  Widget nonStudentSelectors() {
-    return Column(
-      children: [
-        DropdownButtonFormField<String>(
-          initialValue: selectedClassId.isEmpty ? null : selectedClassId,
-          decoration: const InputDecoration(
-            labelText: 'Select Class',
-            prefixIcon: Icon(Icons.class_outlined),
-          ),
-          items: classes.map((schoolClass) {
-            return DropdownMenuItem<String>(
-              value: schoolClass['id'],
-              child: Text(
-                schoolClass['className'] ?? 'Unnamed Class',
-              ),
-            );
-          }).toList(),
-          onChanged: selectClass,
-        ),
-        const SizedBox(height: 14),
-        DropdownButtonFormField<String>(
-          initialValue: selectedStudentId.isEmpty ? null : selectedStudentId,
-          decoration: const InputDecoration(
-            labelText: 'Select Student',
-            prefixIcon: Icon(Icons.person_outline),
-          ),
-          items: students.map((student) {
-            return DropdownMenuItem<String>(
-              value: student['id'],
-              child: Text(
-                student['fullName'] ?? 'Unknown Student',
-              ),
-            );
-          }).toList(),
-          onChanged: students.isEmpty ? null : selectStudent,
-        ),
-        if (selectedClassId.isNotEmpty && students.isEmpty && !isLoadingStudents)
-          const Padding(
-            padding: EdgeInsets.only(top: 10),
-            child: Text(
-              'No students found for this class.',
-              style: TextStyle(
-                color: AppColors.textGrey,
-                fontSize: 13,
-              ),
-            ),
-          ),
-      ],
-    );
-  }
-
   Widget emptyMarksState() {
     return const Center(
       child: Padding(
         padding: EdgeInsets.all(24),
         child: Text(
-          'No results found yet. Marks added by teachers will appear here.',
+          'No results found yet. Marks and teacher comments will appear here.',
           textAlign: TextAlign.center,
           style: TextStyle(
             color: AppColors.textGrey,
@@ -480,23 +551,20 @@ class _ResultsScreenState extends State<ResultsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    String title = 'Results';
+
+    if (currentRole == 'Admin') title = 'All Student Results';
+    if (currentRole == 'Teacher') title = 'Student Results';
+    if (currentRole == 'Parent') title = 'Child Results';
+    if (currentRole == 'Student') title = 'My Results';
+
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: const Text('Results'),
+        title: Text(title),
         actions: [
           IconButton(
-            onPressed: isLoading
-                ? null
-                : () {
-                    if (isStudentRole) {
-                      loadInitialData();
-                    } else if (selectedStudentId.isNotEmpty) {
-                      loadMarksByStudent(selectedStudentId);
-                    } else {
-                      loadInitialData();
-                    }
-                  },
+            onPressed: isLoading ? null : loadInitialData,
             icon: const Icon(Icons.refresh_outlined),
           ),
         ],
@@ -526,8 +594,8 @@ class _ResultsScreenState extends State<ResultsScreen> {
                         padding: const EdgeInsets.all(18),
                         child: Column(
                           children: [
-                            if (!isStudentRole) nonStudentSelectors(),
-                            if (!isStudentRole) const SizedBox(height: 18),
+                            selectorSection(),
+                            if (!isStudent) const SizedBox(height: 18),
                             summaryCard(),
                           ],
                         ),

@@ -34,7 +34,58 @@ class DatabaseService {
         'isActive': data['isActive'] ?? true,
         'classId': data['classId'] ?? '',
         'className': data['className'] ?? '',
+        'parentId': data['parentId'] ?? '',
+        'parentName': data['parentName'] ?? '',
         'createdAt': data['createdAt'],
+      };
+    }).toList();
+  }
+
+  Future<List<Map<String, dynamic>>> getParents() async {
+    final snapshot = await _firestore
+        .collection('users')
+        .where('role', isEqualTo: 'Parent')
+        .where('isActive', isEqualTo: true)
+        .get();
+
+    return snapshot.docs.map((doc) {
+      final data = doc.data();
+
+      return {
+        'id': doc.id,
+        'fullName': data['fullName'] ?? '',
+        'email': data['email'] ?? '',
+        'phone': data['phone'] ?? '',
+        'role': data['role'] ?? 'Parent',
+        'isActive': data['isActive'] ?? true,
+      };
+    }).toList();
+  }
+
+  Future<List<Map<String, dynamic>>> getStudentsByParent({
+    required String parentId,
+  }) async {
+    final snapshot = await _firestore
+        .collection('users')
+        .where('role', isEqualTo: 'Student')
+        .where('parentId', isEqualTo: parentId)
+        .where('isActive', isEqualTo: true)
+        .get();
+
+    return snapshot.docs.map((doc) {
+      final data = doc.data();
+
+      return {
+        'id': doc.id,
+        'fullName': data['fullName'] ?? '',
+        'email': data['email'] ?? '',
+        'phone': data['phone'] ?? '',
+        'role': data['role'] ?? 'Student',
+        'classId': data['classId'] ?? '',
+        'className': data['className'] ?? '',
+        'parentId': data['parentId'] ?? '',
+        'parentName': data['parentName'] ?? '',
+        'isActive': data['isActive'] ?? true,
       };
     }).toList();
   }
@@ -84,6 +135,17 @@ class DatabaseService {
     }
 
     await recalculateClassStudentCount(classId: classId);
+  }
+
+  Future<void> updateStudentParent({
+    required String userId,
+    required String parentId,
+    required String parentName,
+  }) async {
+    await _firestore.collection('users').doc(userId).update({
+      'parentId': parentId,
+      'parentName': parentName,
+    });
   }
 
   Future<void> recalculateClassStudentCount({
@@ -263,6 +325,8 @@ class DatabaseService {
         'role': data['role'] ?? 'Student',
         'classId': data['classId'] ?? '',
         'className': data['className'] ?? '',
+        'parentId': data['parentId'] ?? '',
+        'parentName': data['parentName'] ?? '',
         'isActive': data['isActive'] ?? true,
       };
     }).toList();
