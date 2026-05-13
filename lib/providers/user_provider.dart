@@ -50,4 +50,29 @@ class UserProvider extends ChangeNotifier {
       notifyListeners();
     }
   }
+
+  Future<void> updateStudentClass({
+    required String userId,
+    required String classId,
+    required String className,
+  }) async {
+    try {
+      await _databaseService.updateStudentClass(
+        userId: userId,
+        classId: classId,
+        className: className,
+      );
+
+      final index = users.indexWhere((user) => user['id'] == userId);
+
+      if (index != -1) {
+        users[index]['classId'] = classId;
+        users[index]['className'] = className;
+        notifyListeners();
+      }
+    } catch (error) {
+      errorMessage = error.toString().replaceAll('Exception: ', '');
+      notifyListeners();
+    }
+  }
 }

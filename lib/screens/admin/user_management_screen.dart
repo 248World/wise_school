@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../../core/constants/app_colors.dart';
 import '../../providers/user_provider.dart';
+import '../../services/database_service.dart';
 
 class UserManagementScreen extends StatefulWidget {
   const UserManagementScreen({super.key});
@@ -12,7 +13,11 @@ class UserManagementScreen extends StatefulWidget {
 }
 
 class _UserManagementScreenState extends State<UserManagementScreen> {
+  final DatabaseService databaseService = DatabaseService();
+
   String selectedRole = 'All';
+  bool isLoadingClasses = false;
+  List<Map<String, dynamic>> classes = [];
 
   final List<String> roles = [
     'All',
@@ -26,10 +31,34 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
   void initState() {
     super.initState();
 
-    Future.microtask(() {
+    Future.microtask(() async {
       if (!mounted) return;
-      context.read<UserProvider>().loadUsers();
+      await context.read<UserProvider>().loadUsers();
+      await loadClasses();
     });
+  }
+
+  Future<void> loadClasses() async {
+    try {
+      setState(() {
+        isLoadingClasses = true;
+      });
+
+      final loadedClasses = await databaseService.getClasses();
+
+      if (!mounted) return;
+
+      setState(() {
+        classes = loadedClasses;
+        isLoadingClasses = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+
+      setState(() {
+        isLoadingClasses = false;
+      });
+    }
   }
 
   List<Map<String, dynamic>> filteredUsers(List<Map<String, dynamic>> users) {
@@ -52,6 +81,132 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
       const SnackBar(
         content: Text('Admin add user form will be connected later'),
       ),
+    );
+  }
+
+  Future<void> showAssignClassSheet({
+    required String userId,
+    required String currentClassId,
+  }) async {
+    String selectedClassId = currentClassId;
+    String selectedClassName = '';
+
+    if (selectedClassId.isNotEmpty) {
+      final currentClass = classes.firstWhere(
+        (schoolClass) => schoolClass['id'] == selectedClassId,
+        orElse: () => {},
+      );
+
+      selectedClassName = currentClass['className'] ?? '';
+    }
+
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppColors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(24),
+        ),
+      ),
+      builder: (_) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return Padding(
+              padding: EdgeInsets.only(
+                left: 24,
+                right: 24,
+                top: 24,
+                bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Assign Student to Class',
+                    style: TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.textDark,
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+                  DropdownButtonFormField<String>(
+                    initialValue: selectedClassId.isEmpty ? null : selectedClassId,
+                    decoration: const InputDecoration(
+                      labelText: 'Select Class',
+                      prefixIcon: Icon(Icons.class_outlined),
+                    ),
+                    items: classes.map((schoolClass) {
+                      return DropdownMenuItem<String>(
+                        value: schoolClass['id'],
+                        child: Text(
+                          schoolClass['className'] ?? 'Unnamed Class',
+                        ),
+                      );
+                    }).toList(),
+                    onChanged: (value) {
+                      final selectedClass = classes.firstWhere(
+                        (schoolClass) => schoolClass['id'] == value,
+                        orElse: () => {},
+                      );
+
+                      setModalState(() {
+                        selectedClassId = value ?? '';
+                        selectedClassName = selectedClass['className'] ?? '';
+                      });
+                    },
+                  ),
+                  if (classes.isEmpty) ...[
+                    const SizedBox(height: 10),
+                    const Text(
+                      'No class found yet. Create a class first.',
+                      style: TextStyle(
+                        color: AppColors.textGrey,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 24),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 52,
+                    child: ElevatedButton.icon(
+                      onPressed: selectedClassId.isEmpty
+                          ? null
+                          : () async {
+                              await context
+                                  .read<UserProvider>()
+                                  .updateStudentClass(
+                                    userId: userId,
+                                    classId: selectedClassId,
+                                    className: selectedClassName,
+                                  );
+
+                              if (!context.mounted) return;
+
+                              Navigator.pop(context);
+                              Navigator.pop(context);
+
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text(
+                                    'Student class updated successfully',
+                                  ),
+                                ),
+                              );
+                            },
+                      icon: const Icon(Icons.save_outlined),
+                      label: const Text('Save Class'),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
     );
   }
 
@@ -81,6 +236,8 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
             );
 
             final currentIsActive = currentUser['isActive'] ?? isActive;
+            final currentClassId = currentUser['classId'] ?? '';
+            final currentClassName = currentUser['className'] ?? '';
 
             return Padding(
               padding: const EdgeInsets.fromLTRB(24, 24, 24, 34),
@@ -141,6 +298,47 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                     ),
                   ),
                   const SizedBox(height: 24),
+                  if (role == 'Student')
+                    Container(
+                      margin: const EdgeInsets.only(bottom: 14),
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: AppColors.background,
+                        borderRadius: BorderRadius.circular(18),
+                        border: Border.all(color: AppColors.border),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(
+                            Icons.class_outlined,
+                            color: AppColors.primaryBlue,
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              currentClassName.isEmpty
+                                  ? 'No class assigned'
+                                  : 'Class: $currentClassName',
+                              style: const TextStyle(
+                                color: AppColors.textDark,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                          TextButton(
+                            onPressed: isLoadingClasses
+                                ? null
+                                : () {
+                                    showAssignClassSheet(
+                                      userId: userId,
+                                      currentClassId: currentClassId,
+                                    );
+                                  },
+                            child: const Text('Assign'),
+                          ),
+                        ],
+                      ),
+                    ),
                   Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
@@ -225,8 +423,9 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
           IconButton(
             onPressed: userProvider.isLoading
                 ? null
-                : () {
-                    context.read<UserProvider>().loadUsers();
+                : () async {
+                    await context.read<UserProvider>().loadUsers();
+                    await loadClasses();
                   },
             icon: const Icon(Icons.refresh_outlined),
           ),
@@ -307,6 +506,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                     final email = user['email'] ?? 'No email';
                     final role = user['role'] ?? 'Student';
                     final isActive = user['isActive'] ?? true;
+                    final className = user['className'] ?? '';
 
                     return InkWell(
                       borderRadius: BorderRadius.circular(18),
@@ -355,6 +555,19 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                                       color: AppColors.textGrey,
                                     ),
                                   ),
+                                  if (role == 'Student') ...[
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      className.isEmpty
+                                          ? 'No class assigned'
+                                          : className,
+                                      style: const TextStyle(
+                                        color: AppColors.primaryBlue,
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ],
                                   const SizedBox(height: 6),
                                   Text(
                                     isActive ? 'Active' : 'Disabled',

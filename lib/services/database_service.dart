@@ -32,6 +32,8 @@ class DatabaseService {
         'role': data['role'] ?? 'Student',
         'profileImage': data['profileImage'] ?? '',
         'isActive': data['isActive'] ?? true,
+        'classId': data['classId'] ?? '',
+        'className': data['className'] ?? '',
         'createdAt': data['createdAt'],
       };
     }).toList();
@@ -43,6 +45,17 @@ class DatabaseService {
   }) async {
     await _firestore.collection('users').doc(userId).update({
       'isActive': isActive,
+    });
+  }
+
+  Future<void> updateStudentClass({
+    required String userId,
+    required String classId,
+    required String className,
+  }) async {
+    await _firestore.collection('users').doc(userId).update({
+      'classId': classId,
+      'className': className,
     });
   }
 
@@ -136,8 +149,36 @@ class DatabaseService {
     await _firestore.collection('subjects').doc(subjectId).delete();
   }
 
+  Future<List<Map<String, dynamic>>> getStudentsByClass({
+    required String classId,
+  }) async {
+    final snapshot = await _firestore
+        .collection('users')
+        .where('role', isEqualTo: 'Student')
+        .where('classId', isEqualTo: classId)
+        .where('isActive', isEqualTo: true)
+        .get();
+
+    return snapshot.docs.map((doc) {
+      final data = doc.data();
+
+      return {
+        'id': doc.id,
+        'fullName': data['fullName'] ?? '',
+        'email': data['email'] ?? '',
+        'phone': data['phone'] ?? '',
+        'role': data['role'] ?? 'Student',
+        'classId': data['classId'] ?? '',
+        'className': data['className'] ?? '',
+        'isActive': data['isActive'] ?? true,
+      };
+    }).toList();
+  }
+
   Future<void> saveAttendance({
     required String classId,
+    required String className,
+    required String markedBy,
     required List<Map<String, dynamic>> attendanceData,
   }) async {
     final batch = _firestore.batch();
@@ -146,8 +187,13 @@ class DatabaseService {
       final docRef = _firestore.collection('attendance').doc();
 
       batch.set(docRef, {
-        ...item,
+        'studentId': item['studentId'],
+        'studentName': item['studentName'],
         'classId': classId,
+        'className': className,
+        'status': item['status'],
+        'markedBy': markedBy,
+        'date': DateTime.now().toIso8601String(),
         'createdAt': FieldValue.serverTimestamp(),
       });
     }
