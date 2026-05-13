@@ -7,6 +7,7 @@ import '../../widgets/section_title.dart';
 import '../ai/ai_assistant_screen.dart';
 import '../common/messages_screen.dart';
 import '../common/profile_screen.dart';
+import '../student/results_screen.dart';
 import 'add_marks_screen.dart';
 import 'assignments_screen.dart';
 import 'attendance_screen.dart';
@@ -26,6 +27,7 @@ class TeacherDashboardScreen extends StatelessWidget {
       {'title': 'My Classes', 'icon': Icons.class_outlined},
       {'title': 'Attendance', 'icon': Icons.fact_check_outlined},
       {'title': 'Add Marks', 'icon': Icons.edit_note_outlined},
+      {'title': 'Results', 'icon': Icons.bar_chart_outlined},
       {'title': 'Assignments', 'icon': Icons.assignment_outlined},
       {'title': 'Messages', 'icon': Icons.message_outlined},
       {'title': 'AI Teaching Assistant', 'icon': Icons.smart_toy_outlined},
@@ -52,13 +54,14 @@ class TeacherDashboardScreen extends StatelessWidget {
               ),
               const SizedBox(height: 6),
               const Text(
-                'Manage classes, attendance, marks, and assignments.',
+                'Manage classes, attendance, marks, results, and assignments.',
                 style: TextStyle(
                   fontSize: 14,
                   color: AppColors.textGrey,
                 ),
               ),
               const SizedBox(height: 22),
+
               GridView.count(
                 crossAxisCount: 2,
                 shrinkWrap: true,
@@ -83,15 +86,19 @@ class TeacherDashboardScreen extends StatelessWidget {
                     icon: Icons.grade_outlined,
                   ),
                   DashboardCard(
-                    title: 'Assignments',
-                    value: 'Soon',
-                    icon: Icons.assignment_late_outlined,
+                    title: 'Results',
+                    value: 'Live',
+                    icon: Icons.bar_chart_outlined,
                   ),
                 ],
               ),
+
               const SizedBox(height: 26),
+
               const SectionTitle(title: 'Teaching Modules'),
+
               const SizedBox(height: 14),
+
               GridView.builder(
                 itemCount: modules.length,
                 shrinkWrap: true,
@@ -139,6 +146,15 @@ class TeacherDashboardScreen extends StatelessWidget {
                         );
                       }
 
+                      if (title == 'Results') {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const ResultsScreen(),
+                          ),
+                        );
+                      }
+
                       if (title == 'Assignments') {
                         Navigator.push(
                           context,
@@ -171,11 +187,13 @@ class TeacherDashboardScreen extends StatelessWidget {
                   );
                 },
               ),
+
               const SizedBox(height: 20),
             ],
           ),
         ),
       ),
+
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: 0,
         selectedItemColor: AppColors.primaryBlue,
@@ -210,7 +228,7 @@ class TeacherDashboardScreen extends StatelessWidget {
             Navigator.push(
               context,
               MaterialPageRoute(
-                builder: (_) => const AIAssistantScreen(),
+                builder: (_) => const ResultsScreen(),
               ),
             );
           }
@@ -238,8 +256,8 @@ class TeacherDashboardScreen extends StatelessWidget {
             label: 'Attendance',
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.smart_toy_outlined),
-            label: 'AI',
+            icon: Icon(Icons.bar_chart_outlined),
+            label: 'Results',
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.person_outline),
