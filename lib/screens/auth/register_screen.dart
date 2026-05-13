@@ -23,6 +23,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
   String selectedRole = 'Student';
 
   final List<String> roles = [
+    'Admin',
+    'Teacher',
     'Student',
     'Parent',
   ];
@@ -52,6 +54,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Please fill in all fields'),
+        ),
+      );
+      return;
+    }
+
+    if (!email.contains('@')) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please enter a valid email address'),
         ),
       );
       return;
@@ -132,21 +143,25 @@ class _RegisterScreenState extends State<RegisterScreen> {
               ),
               const SizedBox(height: 8),
               const Text(
-                'Create a student or parent account.',
+                'Create an account and choose the correct role.',
                 style: TextStyle(
                   fontSize: 15,
                   color: AppColors.textGrey,
                 ),
               ),
               const SizedBox(height: 28),
+
               TextField(
                 controller: fullNameController,
+                textCapitalization: TextCapitalization.words,
                 decoration: const InputDecoration(
                   labelText: 'Full Name',
                   prefixIcon: Icon(Icons.person_outline),
                 ),
               ),
+
               const SizedBox(height: 16),
+
               TextField(
                 controller: emailController,
                 keyboardType: TextInputType.emailAddress,
@@ -155,7 +170,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   prefixIcon: Icon(Icons.email_outlined),
                 ),
               ),
+
               const SizedBox(height: 16),
+
               TextField(
                 controller: phoneController,
                 keyboardType: TextInputType.phone,
@@ -164,7 +181,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   prefixIcon: Icon(Icons.phone_outlined),
                 ),
               ),
+
               const SizedBox(height: 16),
+
               DropdownButtonFormField<String>(
                 initialValue: selectedRole,
                 decoration: const InputDecoration(
@@ -183,7 +202,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   });
                 },
               ),
+
               const SizedBox(height: 16),
+
               TextField(
                 controller: passwordController,
                 obscureText: true,
@@ -192,7 +213,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   prefixIcon: Icon(Icons.lock_outline),
                 ),
               ),
+
               const SizedBox(height: 16),
+
               TextField(
                 controller: confirmPasswordController,
                 obscureText: true,
@@ -201,7 +224,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   prefixIcon: Icon(Icons.lock_reset_outlined),
                 ),
               ),
+
               const SizedBox(height: 28),
+
               SizedBox(
                 width: double.infinity,
                 height: 52,
@@ -219,7 +244,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       : const Text('Create Account'),
                 ),
               ),
+
               const SizedBox(height: 12),
+
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [

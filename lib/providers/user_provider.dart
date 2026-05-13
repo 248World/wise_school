@@ -5,19 +5,49 @@ class UserProvider extends ChangeNotifier {
   final DatabaseService _databaseService = DatabaseService();
 
   bool isLoading = false;
+  String? errorMessage;
   List<Map<String, dynamic>> users = [];
 
   Future<void> loadUsers() async {
-    isLoading = true;
-    notifyListeners();
+    try {
+      isLoading = true;
+      errorMessage = null;
+      notifyListeners();
 
-    users = await _databaseService.getUsers();
+      users = await _databaseService.getUsers();
 
-    isLoading = false;
-    notifyListeners();
+      isLoading = false;
+      notifyListeners();
+    } catch (error) {
+      isLoading = false;
+      errorMessage = error.toString().replaceAll('Exception: ', '');
+      notifyListeners();
+    }
   }
 
   Future<String> getUserRole(String userId) async {
     return _databaseService.getUserRole(userId);
+  }
+
+  Future<void> updateUserStatus({
+    required String userId,
+    required bool isActive,
+  }) async {
+    try {
+      await _databaseService.updateUserStatus(
+        userId: userId,
+        isActive: isActive,
+      );
+
+      final index = users.indexWhere((user) => user['id'] == userId);
+
+      if (index != -1) {
+        users[index]['isActive'] = isActive;
+        notifyListeners();
+      }
+    } catch (error) {
+      errorMessage = error.toString().replaceAll('Exception: ', '');
+      notifyListeners();
+    }
   }
 }
