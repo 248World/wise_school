@@ -17,7 +17,10 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
 
   String selectedRole = 'All';
   bool isLoadingClasses = false;
+  bool isLoadingParents = false;
+
   List<Map<String, dynamic>> classes = [];
+  List<Map<String, dynamic>> parents = [];
 
   final List<String> roles = [
     'All',
@@ -33,8 +36,10 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
 
     Future.microtask(() async {
       if (!mounted) return;
+
       await context.read<UserProvider>().loadUsers();
       await loadClasses();
+      await loadParents();
     });
   }
 
@@ -57,6 +62,29 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
 
       setState(() {
         isLoadingClasses = false;
+      });
+    }
+  }
+
+  Future<void> loadParents() async {
+    try {
+      setState(() {
+        isLoadingParents = true;
+      });
+
+      final loadedParents = await databaseService.getParents();
+
+      if (!mounted) return;
+
+      setState(() {
+        parents = loadedParents;
+        isLoadingParents = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+
+      setState(() {
+        isLoadingParents = false;
       });
     }
   }
@@ -132,6 +160,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                     ),
                   ),
                   const SizedBox(height: 18),
+
                   DropdownButtonFormField<String>(
                     initialValue: selectedClassId.isEmpty ? null : selectedClassId,
                     decoration: const InputDecoration(
@@ -158,6 +187,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                       });
                     },
                   ),
+
                   if (classes.isEmpty) ...[
                     const SizedBox(height: 10),
                     const Text(
@@ -168,7 +198,9 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                       ),
                     ),
                   ],
+
                   const SizedBox(height: 24),
+
                   SizedBox(
                     width: double.infinity,
                     height: 52,
@@ -210,6 +242,137 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
     );
   }
 
+  Future<void> showAssignParentSheet({
+    required String userId,
+    required String currentParentId,
+  }) async {
+    String selectedParentId = currentParentId;
+    String selectedParentName = '';
+
+    if (selectedParentId.isNotEmpty) {
+      final currentParent = parents.firstWhere(
+        (parent) => parent['id'] == selectedParentId,
+        orElse: () => {},
+      );
+
+      selectedParentName = currentParent['fullName'] ?? '';
+    }
+
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppColors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(24),
+        ),
+      ),
+      builder: (_) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return Padding(
+              padding: EdgeInsets.only(
+                left: 24,
+                right: 24,
+                top: 24,
+                bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Assign Parent to Student',
+                    style: TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.textDark,
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+
+                  DropdownButtonFormField<String>(
+                    initialValue:
+                        selectedParentId.isEmpty ? null : selectedParentId,
+                    decoration: const InputDecoration(
+                      labelText: 'Select Parent',
+                      prefixIcon: Icon(Icons.family_restroom_outlined),
+                    ),
+                    items: parents.map((parent) {
+                      return DropdownMenuItem<String>(
+                        value: parent['id'],
+                        child: Text(
+                          parent['fullName'] ?? 'Unknown Parent',
+                        ),
+                      );
+                    }).toList(),
+                    onChanged: (value) {
+                      final selectedParent = parents.firstWhere(
+                        (parent) => parent['id'] == value,
+                        orElse: () => {},
+                      );
+
+                      setModalState(() {
+                        selectedParentId = value ?? '';
+                        selectedParentName = selectedParent['fullName'] ?? '';
+                      });
+                    },
+                  ),
+
+                  if (parents.isEmpty) ...[
+                    const SizedBox(height: 10),
+                    const Text(
+                      'No parent account found yet. Register a parent account first.',
+                      style: TextStyle(
+                        color: AppColors.textGrey,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ],
+
+                  const SizedBox(height: 24),
+
+                  SizedBox(
+                    width: double.infinity,
+                    height: 52,
+                    child: ElevatedButton.icon(
+                      onPressed: selectedParentId.isEmpty
+                          ? null
+                          : () async {
+                              await context
+                                  .read<UserProvider>()
+                                  .updateStudentParent(
+                                    userId: userId,
+                                    parentId: selectedParentId,
+                                    parentName: selectedParentName,
+                                  );
+
+                              if (!context.mounted) return;
+
+                              Navigator.pop(context);
+                              Navigator.pop(context);
+
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text(
+                                    'Student parent updated successfully',
+                                  ),
+                                ),
+                              );
+                            },
+                      icon: const Icon(Icons.save_outlined),
+                      label: const Text('Save Parent'),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
   void showUserDetails(Map<String, dynamic> user) {
     final userId = user['id'] ?? '';
     final fullName = user['fullName'] ?? 'Unknown User';
@@ -238,69 +401,163 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
             final currentIsActive = currentUser['isActive'] ?? isActive;
             final currentClassId = currentUser['classId'] ?? '';
             final currentClassName = currentUser['className'] ?? '';
+            final currentParentId = currentUser['parentId'] ?? '';
+            final currentParentName = currentUser['parentName'] ?? '';
 
             return Padding(
               padding: const EdgeInsets.fromLTRB(24, 24, 24, 34),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  CircleAvatar(
-                    radius: 38,
-                    backgroundColor: roleColor(role).withValues(alpha: 0.12),
-                    child: Icon(
-                      Icons.person_outline,
-                      size: 42,
-                      color: roleColor(role),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    fullName,
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.textDark,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    email,
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      color: AppColors.textGrey,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    phone,
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      color: AppColors.textGrey,
-                    ),
-                  ),
-                  const SizedBox(height: 14),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 14,
-                      vertical: 8,
-                    ),
-                    decoration: BoxDecoration(
-                      color: roleColor(role).withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Text(
-                      role,
-                      style: TextStyle(
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    CircleAvatar(
+                      radius: 38,
+                      backgroundColor: roleColor(role).withValues(alpha: 0.12),
+                      child: Icon(
+                        Icons.person_outline,
+                        size: 42,
                         color: roleColor(role),
-                        fontWeight: FontWeight.bold,
                       ),
                     ),
-                  ),
-                  const SizedBox(height: 24),
-                  if (role == 'Student')
+                    const SizedBox(height: 16),
+
+                    Text(
+                      fullName,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.textDark,
+                      ),
+                    ),
+
+                    const SizedBox(height: 6),
+
+                    Text(
+                      email,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        color: AppColors.textGrey,
+                      ),
+                    ),
+
+                    const SizedBox(height: 8),
+
+                    Text(
+                      phone,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        color: AppColors.textGrey,
+                      ),
+                    ),
+
+                    const SizedBox(height: 14),
+
                     Container(
-                      margin: const EdgeInsets.only(bottom: 14),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 8,
+                      ),
+                      decoration: BoxDecoration(
+                        color: roleColor(role).withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Text(
+                        role,
+                        style: TextStyle(
+                          color: roleColor(role),
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+
+                    const SizedBox(height: 24),
+
+                    if (role == 'Student')
+                      Container(
+                        margin: const EdgeInsets.only(bottom: 14),
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: AppColors.background,
+                          borderRadius: BorderRadius.circular(18),
+                          border: Border.all(color: AppColors.border),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(
+                              Icons.class_outlined,
+                              color: AppColors.primaryBlue,
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Text(
+                                currentClassName.isEmpty
+                                    ? 'No class assigned'
+                                    : 'Class: $currentClassName',
+                                style: const TextStyle(
+                                  color: AppColors.textDark,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                            TextButton(
+                              onPressed: isLoadingClasses
+                                  ? null
+                                  : () {
+                                      showAssignClassSheet(
+                                        userId: userId,
+                                        currentClassId: currentClassId,
+                                      );
+                                    },
+                              child: const Text('Assign'),
+                            ),
+                          ],
+                        ),
+                      ),
+
+                    if (role == 'Student')
+                      Container(
+                        margin: const EdgeInsets.only(bottom: 14),
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: AppColors.background,
+                          borderRadius: BorderRadius.circular(18),
+                          border: Border.all(color: AppColors.border),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(
+                              Icons.family_restroom_outlined,
+                              color: AppColors.primaryBlue,
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Text(
+                                currentParentName.isEmpty
+                                    ? 'No parent assigned'
+                                    : 'Parent: $currentParentName',
+                                style: const TextStyle(
+                                  color: AppColors.textDark,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                            TextButton(
+                              onPressed: isLoadingParents
+                                  ? null
+                                  : () {
+                                      showAssignParentSheet(
+                                        userId: userId,
+                                        currentParentId: currentParentId,
+                                      );
+                                    },
+                              child: const Text('Assign'),
+                            ),
+                          ],
+                        ),
+                      ),
+
+                    Container(
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
                         color: AppColors.background,
@@ -309,83 +566,45 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                       ),
                       child: Row(
                         children: [
-                          const Icon(
-                            Icons.class_outlined,
-                            color: AppColors.primaryBlue,
+                          Icon(
+                            currentIsActive
+                                ? Icons.check_circle_outline
+                                : Icons.block_outlined,
+                            color: currentIsActive
+                                ? AppColors.softGreen
+                                : AppColors.danger,
                           ),
                           const SizedBox(width: 12),
                           Expanded(
                             child: Text(
-                              currentClassName.isEmpty
-                                  ? 'No class assigned'
-                                  : 'Class: $currentClassName',
-                              style: const TextStyle(
-                                color: AppColors.textDark,
-                                fontWeight: FontWeight.w600,
+                              currentIsActive
+                                  ? 'Account Active'
+                                  : 'Account Disabled',
+                              style: TextStyle(
+                                color: currentIsActive
+                                    ? AppColors.softGreen
+                                    : AppColors.danger,
+                                fontWeight: FontWeight.bold,
                               ),
                             ),
                           ),
-                          TextButton(
-                            onPressed: isLoadingClasses
-                                ? null
-                                : () {
-                                    showAssignClassSheet(
-                                      userId: userId,
-                                      currentClassId: currentClassId,
-                                    );
-                                  },
-                            child: const Text('Assign'),
+                          Switch(
+                            value: currentIsActive,
+                            activeThumbColor: AppColors.primaryBlue,
+                            onChanged: (value) async {
+                              if (userId.isEmpty) return;
+
+                              await userProvider.updateUserStatus(
+                                userId: userId,
+                                isActive: value,
+                              );
+                            },
                           ),
                         ],
                       ),
                     ),
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: AppColors.background,
-                      borderRadius: BorderRadius.circular(18),
-                      border: Border.all(color: AppColors.border),
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(
-                          currentIsActive
-                              ? Icons.check_circle_outline
-                              : Icons.block_outlined,
-                          color: currentIsActive
-                              ? AppColors.softGreen
-                              : AppColors.danger,
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Text(
-                            currentIsActive
-                                ? 'Account Active'
-                                : 'Account Disabled',
-                            style: TextStyle(
-                              color: currentIsActive
-                                  ? AppColors.softGreen
-                                  : AppColors.danger,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                        Switch(
-                          value: currentIsActive,
-                          activeThumbColor: AppColors.primaryBlue,
-                          onChanged: (value) async {
-                            if (userId.isEmpty) return;
-
-                            await userProvider.updateUserStatus(
-                              userId: userId,
-                              isActive: value,
-                            );
-                          },
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             );
           },
@@ -426,6 +645,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                 : () async {
                     await context.read<UserProvider>().loadUsers();
                     await loadClasses();
+                    await loadParents();
                   },
             icon: const Icon(Icons.refresh_outlined),
           ),
@@ -462,6 +682,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                 },
               ),
             ),
+
             if (userProvider.errorMessage != null)
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 18),
@@ -481,6 +702,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                   ),
                 ),
               ),
+
             if (userProvider.isLoading)
               const Expanded(
                 child: Center(
@@ -507,6 +729,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                     final role = user['role'] ?? 'Student';
                     final isActive = user['isActive'] ?? true;
                     final className = user['className'] ?? '';
+                    final parentName = user['parentName'] ?? '';
 
                     return InkWell(
                       borderRadius: BorderRadius.circular(18),
@@ -536,6 +759,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                               ),
                             ),
                             const SizedBox(width: 14),
+
                             Expanded(
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -560,9 +784,20 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                                     Text(
                                       className.isEmpty
                                           ? 'No class assigned'
-                                          : className,
+                                          : 'Class: $className',
                                       style: const TextStyle(
                                         color: AppColors.primaryBlue,
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      parentName.isEmpty
+                                          ? 'No parent assigned'
+                                          : 'Parent: $parentName',
+                                      style: const TextStyle(
+                                        color: Colors.purple,
                                         fontSize: 12,
                                         fontWeight: FontWeight.bold,
                                       ),
@@ -582,6 +817,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                                 ],
                               ),
                             ),
+
                             Container(
                               padding: const EdgeInsets.symmetric(
                                 horizontal: 10,
