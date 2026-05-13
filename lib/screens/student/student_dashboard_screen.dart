@@ -108,11 +108,13 @@ class StudentDashboardScreen extends StatelessWidget {
                   childAspectRatio: 1.1,
                 ),
                 itemBuilder: (context, index) {
+                  final title = modules[index]['title'] as String;
+
                   return ModuleCard(
-                    title: modules[index]['title'] as String,
+                    title: title,
                     icon: modules[index]['icon'] as IconData,
                     onTap: () {
-                      if (modules[index]['title'] == 'Profile') {
+                      if (title == 'Profile') {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
@@ -121,7 +123,7 @@ class StudentDashboardScreen extends StatelessWidget {
                         );
                       }
 
-                      if (modules[index]['title'] == 'Timetable') {
+                      if (title == 'Timetable') {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
@@ -130,7 +132,7 @@ class StudentDashboardScreen extends StatelessWidget {
                         );
                       }
 
-                      if (modules[index]['title'] == 'Results') {
+                      if (title == 'Results') {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
@@ -139,7 +141,7 @@ class StudentDashboardScreen extends StatelessWidget {
                         );
                       }
 
-                      if (modules[index]['title'] == 'Attendance') {
+                      if (title == 'Attendance') {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
@@ -149,7 +151,7 @@ class StudentDashboardScreen extends StatelessWidget {
                         );
                       }
 
-                      if (modules[index]['title'] == 'Assignments') {
+                      if (title == 'Assignments') {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
@@ -159,7 +161,7 @@ class StudentDashboardScreen extends StatelessWidget {
                         );
                       }
 
-                      if (modules[index]['title'] == 'AI Study Assistant') {
+                      if (title == 'AI Study Assistant') {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
