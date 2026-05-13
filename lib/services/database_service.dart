@@ -46,6 +46,17 @@ class DatabaseService {
     await _firestore.collection('users').doc(userId).update({
       'isActive': isActive,
     });
+
+    final userDoc = await _firestore.collection('users').doc(userId).get();
+    final userData = userDoc.data();
+
+    if (userData != null && userData['role'] == 'Student') {
+      final classId = userData['classId'] ?? '';
+
+      if (classId.toString().isNotEmpty) {
+        await recalculateClassStudentCount(classId: classId);
+      }
+    }
   }
 
   Future<void> updateStudentClass({
@@ -53,9 +64,44 @@ class DatabaseService {
     required String classId,
     required String className,
   }) async {
-    await _firestore.collection('users').doc(userId).update({
+    final userRef = _firestore.collection('users').doc(userId);
+    final oldUserDoc = await userRef.get();
+
+    String oldClassId = '';
+
+    if (oldUserDoc.exists) {
+      final oldData = oldUserDoc.data();
+      oldClassId = oldData?['classId'] ?? '';
+    }
+
+    await userRef.update({
       'classId': classId,
       'className': className,
+    });
+
+    if (oldClassId.isNotEmpty && oldClassId != classId) {
+      await recalculateClassStudentCount(classId: oldClassId);
+    }
+
+    await recalculateClassStudentCount(classId: classId);
+  }
+
+  Future<void> recalculateClassStudentCount({
+    required String classId,
+  }) async {
+    if (classId.isEmpty) {
+      return;
+    }
+
+    final studentsSnapshot = await _firestore
+        .collection('users')
+        .where('role', isEqualTo: 'Student')
+        .where('classId', isEqualTo: classId)
+        .where('isActive', isEqualTo: true)
+        .get();
+
+    await _firestore.collection('classes').doc(classId).update({
+      'studentCount': studentsSnapshot.docs.length,
     });
   }
 
@@ -63,6 +109,29 @@ class DatabaseService {
     final snapshot = await _firestore
         .collection('classes')
         .orderBy('createdAt', descending: true)
+        .get();
+
+    return snapshot.docs.map((doc) {
+      final data = doc.data();
+
+      return {
+        'id': doc.id,
+        'className': data['className'] ?? '',
+        'level': data['level'] ?? '',
+        'teacherId': data['teacherId'] ?? '',
+        'teacherName': data['teacherName'] ?? '',
+        'studentCount': data['studentCount'] ?? 0,
+        'createdAt': data['createdAt'],
+      };
+    }).toList();
+  }
+
+  Future<List<Map<String, dynamic>>> getClassesByTeacher({
+    required String teacherName,
+  }) async {
+    final snapshot = await _firestore
+        .collection('classes')
+        .where('teacherName', isEqualTo: teacherName)
         .get();
 
     return snapshot.docs.map((doc) {

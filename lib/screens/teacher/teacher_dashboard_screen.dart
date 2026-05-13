@@ -1,14 +1,16 @@
 import 'package:flutter/material.dart';
+
 import '../../core/constants/app_colors.dart';
 import '../../widgets/dashboard_card.dart';
 import '../../widgets/module_card.dart';
 import '../../widgets/section_title.dart';
 import '../ai/ai_assistant_screen.dart';
-import '../common/profile_screen.dart';
 import '../common/messages_screen.dart';
+import '../common/profile_screen.dart';
+import 'add_marks_screen.dart';
 import 'assignments_screen.dart';
 import 'attendance_screen.dart';
-import 'add_marks_screen.dart';
+import 'my_classes_screen.dart';
 
 class TeacherDashboardScreen extends StatelessWidget {
   final String displayName;
@@ -67,23 +69,23 @@ class TeacherDashboardScreen extends StatelessWidget {
                 children: const [
                   DashboardCard(
                     title: 'My Classes',
-                    value: '05',
+                    value: 'Live',
                     icon: Icons.class_outlined,
                   ),
                   DashboardCard(
-                    title: 'Today Attendance',
-                    value: '92%',
+                    title: 'Attendance',
+                    value: 'Live',
                     icon: Icons.fact_check_outlined,
                   ),
                   DashboardCard(
-                    title: 'Pending Tasks',
-                    value: '12',
-                    icon: Icons.assignment_late_outlined,
+                    title: 'Marks',
+                    value: 'Live',
+                    icon: Icons.grade_outlined,
                   ),
                   DashboardCard(
-                    title: 'Marks Added',
-                    value: '68',
-                    icon: Icons.grade_outlined,
+                    title: 'Assignments',
+                    value: 'Soon',
+                    icon: Icons.assignment_late_outlined,
                   ),
                 ],
               ),
@@ -101,11 +103,24 @@ class TeacherDashboardScreen extends StatelessWidget {
                   childAspectRatio: 1.1,
                 ),
                 itemBuilder: (context, index) {
+                  final title = modules[index]['title'] as String;
+
                   return ModuleCard(
-                    title: modules[index]['title'] as String,
+                    title: title,
                     icon: modules[index]['icon'] as IconData,
                     onTap: () {
-                      if (modules[index]['title'] == 'Attendance') {
+                      if (title == 'My Classes') {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => MyClassesScreen(
+                              teacherName: displayName,
+                            ),
+                          ),
+                        );
+                      }
+
+                      if (title == 'Attendance') {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
@@ -115,7 +130,7 @@ class TeacherDashboardScreen extends StatelessWidget {
                         );
                       }
 
-                      if (modules[index]['title'] == 'Add Marks') {
+                      if (title == 'Add Marks') {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
@@ -124,7 +139,7 @@ class TeacherDashboardScreen extends StatelessWidget {
                         );
                       }
 
-                      if (modules[index]['title'] == 'Assignments') {
+                      if (title == 'Assignments') {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
@@ -134,7 +149,7 @@ class TeacherDashboardScreen extends StatelessWidget {
                         );
                       }
 
-                      if (modules[index]['title'] == 'Messages') {
+                      if (title == 'Messages') {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
@@ -144,7 +159,7 @@ class TeacherDashboardScreen extends StatelessWidget {
                         );
                       }
 
-                      if (modules[index]['title'] == 'AI Teaching Assistant') {
+                      if (title == 'AI Teaching Assistant') {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
@@ -169,6 +184,17 @@ class TeacherDashboardScreen extends StatelessWidget {
         onTap: (index) {
           if (index == 0) {
             return;
+          }
+
+          if (index == 1) {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => MyClassesScreen(
+                  teacherName: displayName,
+                ),
+              ),
+            );
           }
 
           if (index == 2) {
