@@ -124,6 +124,30 @@ class DatabaseService {
     }).toList();
   }
 
+  Future<List<Map<String, dynamic>>> getSubjectsByClass({
+    required String classId,
+  }) async {
+    final snapshot = await _firestore
+        .collection('subjects')
+        .where('classId', isEqualTo: classId)
+        .get();
+
+    return snapshot.docs.map((doc) {
+      final data = doc.data();
+
+      return {
+        'id': doc.id,
+        'subjectName': data['subjectName'] ?? '',
+        'classId': data['classId'] ?? '',
+        'className': data['className'] ?? '',
+        'teacherId': data['teacherId'] ?? '',
+        'teacherName': data['teacherName'] ?? '',
+        'coefficient': data['coefficient'] ?? 1,
+        'createdAt': data['createdAt'],
+      };
+    }).toList();
+  }
+
   Future<void> addSubject({
     required String subjectName,
     required String classId,
@@ -229,7 +253,11 @@ class DatabaseService {
 
   Future<void> saveMarks({
     required String classId,
+    required String className,
     required String subjectId,
+    required String subjectName,
+    required String teacherId,
+    required String teacherName,
     required List<Map<String, dynamic>> marksData,
   }) async {
     final batch = _firestore.batch();
@@ -238,13 +266,79 @@ class DatabaseService {
       final docRef = _firestore.collection('marks').doc();
 
       batch.set(docRef, {
-        ...item,
+        'studentId': item['studentId'],
+        'studentName': item['studentName'],
         'classId': classId,
+        'className': className,
         'subjectId': subjectId,
+        'subjectName': subjectName,
+        'teacherId': teacherId,
+        'teacherName': teacherName,
+        'mark': item['mark'],
+        'grade': item['grade'],
+        'comment': item['comment'],
         'createdAt': FieldValue.serverTimestamp(),
       });
     }
 
     await batch.commit();
+  }
+
+  Future<List<Map<String, dynamic>>> getMarksByStudent({
+    required String studentId,
+  }) async {
+    final snapshot = await _firestore
+        .collection('marks')
+        .where('studentId', isEqualTo: studentId)
+        .get();
+
+    return snapshot.docs.map((doc) {
+      final data = doc.data();
+
+      return {
+        'id': doc.id,
+        'studentId': data['studentId'] ?? '',
+        'studentName': data['studentName'] ?? '',
+        'classId': data['classId'] ?? '',
+        'className': data['className'] ?? '',
+        'subjectId': data['subjectId'] ?? '',
+        'subjectName': data['subjectName'] ?? '',
+        'teacherId': data['teacherId'] ?? '',
+        'teacherName': data['teacherName'] ?? '',
+        'mark': data['mark'] ?? 0,
+        'grade': data['grade'] ?? '',
+        'comment': data['comment'] ?? '',
+        'createdAt': data['createdAt'],
+      };
+    }).toList();
+  }
+
+  Future<List<Map<String, dynamic>>> getMarksByClass({
+    required String classId,
+  }) async {
+    final snapshot = await _firestore
+        .collection('marks')
+        .where('classId', isEqualTo: classId)
+        .get();
+
+    return snapshot.docs.map((doc) {
+      final data = doc.data();
+
+      return {
+        'id': doc.id,
+        'studentId': data['studentId'] ?? '',
+        'studentName': data['studentName'] ?? '',
+        'classId': data['classId'] ?? '',
+        'className': data['className'] ?? '',
+        'subjectId': data['subjectId'] ?? '',
+        'subjectName': data['subjectName'] ?? '',
+        'teacherId': data['teacherId'] ?? '',
+        'teacherName': data['teacherName'] ?? '',
+        'mark': data['mark'] ?? 0,
+        'grade': data['grade'] ?? '',
+        'comment': data['comment'] ?? '',
+        'createdAt': data['createdAt'],
+      };
+    }).toList();
   }
 }
