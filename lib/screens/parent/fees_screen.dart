@@ -792,6 +792,245 @@ class _FeesScreenState extends State<FeesScreen> {
     }
   }
 
+  Widget sheetHandle() {
+    return Center(
+      child: Container(
+        height: 5,
+        width: 44,
+        decoration: BoxDecoration(
+          color: AppColors.border,
+          borderRadius: BorderRadius.circular(20),
+        ),
+      ),
+    );
+  }
+
+  Widget pngIconBox({
+    required String imagePath,
+    required IconData fallbackIcon,
+    Color color = AppColors.primaryBlue,
+    double size = 54,
+    double padding = 11,
+  }) {
+    return Container(
+      height: size,
+      width: size,
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(size * 0.36),
+      ),
+      child: Padding(
+        padding: EdgeInsets.all(padding),
+        child: Image.asset(
+          imagePath,
+          fit: BoxFit.contain,
+          errorBuilder: (context, error, stackTrace) {
+            return Icon(
+              fallbackIcon,
+              color: color,
+              size: size * 0.52,
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  Widget headerCard() {
+    String title = 'Fees';
+    String subtitle = 'View and manage school fee records.';
+
+    if (currentRole == 'Admin') {
+      title = 'Fees Management';
+      subtitle = 'Create fees, manage bank details, and approve payments.';
+    }
+
+    if (currentRole == 'Parent') {
+      title = 'Child Fees';
+      subtitle = 'View fee records and notify admin after payment.';
+    }
+
+    if (currentRole == 'Student') {
+      title = 'My Fees';
+      subtitle = 'View your school fee records and payment status.';
+    }
+
+    final pendingCount = paymentConfirmations.where((item) {
+      return item['status'] == 'Pending';
+    }).length;
+
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.fromLTRB(18, 18, 18, 0),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: AppColors.cardBlueGradient,
+        borderRadius: BorderRadius.circular(28),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.primaryBlue.withValues(alpha: 0.22),
+            blurRadius: 22,
+            offset: const Offset(0, 12),
+          ),
+        ],
+      ),
+      child: Stack(
+        children: [
+          Positioned(
+            top: -36,
+            right: -28,
+            child: Container(
+              height: 120,
+              width: 120,
+              decoration: BoxDecoration(
+                color: AppColors.white.withValues(alpha: 0.08),
+                shape: BoxShape.circle,
+              ),
+            ),
+          ),
+          Positioned(
+            bottom: -42,
+            left: -34,
+            child: Container(
+              height: 115,
+              width: 115,
+              decoration: BoxDecoration(
+                color: AppColors.white.withValues(alpha: 0.07),
+                shape: BoxShape.circle,
+              ),
+            ),
+          ),
+          Row(
+            children: [
+              Container(
+                height: 66,
+                width: 66,
+                decoration: BoxDecoration(
+                  color: AppColors.white.withValues(alpha: 0.16),
+                  borderRadius: BorderRadius.circular(24),
+                  border: Border.all(
+                    color: AppColors.white.withValues(alpha: 0.22),
+                  ),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(13),
+                  child: Image.asset(
+                    'assets/icons/fees.png',
+                    fit: BoxFit.contain,
+                    errorBuilder: (context, error, stackTrace) {
+                      return const Icon(
+                        Icons.account_balance_wallet_outlined,
+                        color: AppColors.white,
+                        size: 34,
+                      );
+                    },
+                  ),
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        color: AppColors.white,
+                        fontSize: 24,
+                        fontWeight: FontWeight.w900,
+                        height: 1.15,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      '$subtitle ${fees.length} fee record(s).',
+                      style: TextStyle(
+                        color: AppColors.white.withValues(alpha: 0.85),
+                        fontSize: 13,
+                        height: 1.45,
+                      ),
+                    ),
+                    if (currentRole == 'Admin' && pendingCount > 0) ...[
+                      const SizedBox(height: 10),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 7,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AppColors.white.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: AppColors.white.withValues(alpha: 0.20),
+                          ),
+                        ),
+                        child: Text(
+                          '$pendingCount pending confirmation(s)',
+                          style: const TextStyle(
+                            color: AppColors.white,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget smallStatusChip({
+    required String text,
+    required Color color,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Text(
+        text,
+        style: TextStyle(
+          color: color,
+          fontWeight: FontWeight.w800,
+          fontSize: 12,
+        ),
+      ),
+    );
+  }
+
+  Widget detailLine({
+    required IconData icon,
+    required String text,
+  }) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(
+          icon,
+          color: AppColors.textLight,
+          size: 16,
+        ),
+        const SizedBox(width: 6),
+        Expanded(
+          child: Text(
+            text,
+            style: const TextStyle(
+              color: AppColors.textGrey,
+              height: 1.35,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
   void showBankDetailsSheet() {
     bankNameController.text = bankDetails?['bankName'] ?? '';
     accountNameController.text = bankDetails?['accountName'] ?? '';
@@ -806,7 +1045,7 @@ class _FeesScreenState extends State<FeesScreen> {
       backgroundColor: AppColors.white,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(
-          top: Radius.circular(24),
+          top: Radius.circular(28),
         ),
       ),
       builder: (sheetContext) {
@@ -822,13 +1061,28 @@ class _FeesScreenState extends State<FeesScreen> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  'School Bank Details',
-                  style: TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.textDark,
-                  ),
+                sheetHandle(),
+                const SizedBox(height: 18),
+                Row(
+                  children: [
+                    pngIconBox(
+                      imagePath: 'assets/icons/fees.png',
+                      fallbackIcon: Icons.account_balance_outlined,
+                      size: 48,
+                      padding: 10,
+                    ),
+                    const SizedBox(width: 12),
+                    const Expanded(
+                      child: Text(
+                        'School Bank Details',
+                        style: TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.w900,
+                          color: AppColors.textDark,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 18),
                 TextField(
@@ -927,7 +1181,7 @@ class _FeesScreenState extends State<FeesScreen> {
       backgroundColor: AppColors.white,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(
-          top: Radius.circular(24),
+          top: Radius.circular(28),
         ),
       ),
       builder: (sheetContext) {
@@ -945,13 +1199,28 @@ class _FeesScreenState extends State<FeesScreen> {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
-                      'Create Fee Record',
-                      style: TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.textDark,
-                      ),
+                    sheetHandle(),
+                    const SizedBox(height: 18),
+                    Row(
+                      children: [
+                        pngIconBox(
+                          imagePath: 'assets/icons/fees.png',
+                          fallbackIcon: Icons.payments_outlined,
+                          size: 48,
+                          padding: 10,
+                        ),
+                        const SizedBox(width: 12),
+                        const Expanded(
+                          child: Text(
+                            'Create Fee Record',
+                            style: TextStyle(
+                              fontSize: 22,
+                              fontWeight: FontWeight.w900,
+                              color: AppColors.textDark,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 18),
                     TextField(
@@ -1075,7 +1344,7 @@ class _FeesScreenState extends State<FeesScreen> {
       backgroundColor: AppColors.white,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(
-          top: Radius.circular(24),
+          top: Radius.circular(28),
         ),
       ),
       builder: (sheetContext) {
@@ -1087,13 +1356,28 @@ class _FeesScreenState extends State<FeesScreen> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    'Update Fee Status',
-                    style: TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.textDark,
-                    ),
+                  sheetHandle(),
+                  const SizedBox(height: 18),
+                  Row(
+                    children: [
+                      pngIconBox(
+                        imagePath: 'assets/icons/fees.png',
+                        fallbackIcon: Icons.verified_outlined,
+                        size: 46,
+                        padding: 10,
+                      ),
+                      const SizedBox(width: 12),
+                      const Expanded(
+                        child: Text(
+                          'Update Fee Status',
+                          style: TextStyle(
+                            fontSize: 22,
+                            fontWeight: FontWeight.w900,
+                            color: AppColors.textDark,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 18),
                   DropdownButtonFormField<String>(
@@ -1155,7 +1439,7 @@ class _FeesScreenState extends State<FeesScreen> {
       backgroundColor: AppColors.white,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(
-          top: Radius.circular(24),
+          top: Radius.circular(28),
         ),
       ),
       builder: (sheetContext) {
@@ -1173,13 +1457,28 @@ class _FeesScreenState extends State<FeesScreen> {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
-                      'Confirm Payment',
-                      style: TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.textDark,
-                      ),
+                    sheetHandle(),
+                    const SizedBox(height: 18),
+                    Row(
+                      children: [
+                        pngIconBox(
+                          imagePath: 'assets/icons/fees.png',
+                          fallbackIcon: Icons.send_outlined,
+                          size: 48,
+                          padding: 10,
+                        ),
+                        const SizedBox(width: 12),
+                        const Expanded(
+                          child: Text(
+                            'Confirm Payment',
+                            style: TextStyle(
+                              fontSize: 22,
+                              fontWeight: FontWeight.w900,
+                              color: AppColors.textDark,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 8),
                     Text(
@@ -1237,9 +1536,9 @@ class _FeesScreenState extends State<FeesScreen> {
                       child: Container(
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
-                          color: AppColors.white,
-                          borderRadius: BorderRadius.circular(14),
-                          border: Border.all(color: AppColors.border),
+                          color: AppColors.inputBackground,
+                          borderRadius: BorderRadius.circular(18),
+                          border: Border.all(color: AppColors.softBorder),
                         ),
                         child: Row(
                           children: [
@@ -1324,7 +1623,7 @@ class _FeesScreenState extends State<FeesScreen> {
       backgroundColor: AppColors.white,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(
-          top: Radius.circular(24),
+          top: Radius.circular(28),
         ),
       ),
       builder: (sheetContext) {
@@ -1332,13 +1631,28 @@ class _FeesScreenState extends State<FeesScreen> {
           padding: const EdgeInsets.fromLTRB(18, 18, 18, 34),
           child: Column(
             children: [
-              const Text(
-                'Payment Confirmations',
-                style: TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.textDark,
-                ),
+              sheetHandle(),
+              const SizedBox(height: 18),
+              Row(
+                children: [
+                  pngIconBox(
+                    imagePath: 'assets/icons/fees.png',
+                    fallbackIcon: Icons.receipt_long_outlined,
+                    size: 46,
+                    padding: 10,
+                  ),
+                  const SizedBox(width: 12),
+                  const Expanded(
+                    child: Text(
+                      'Payment Confirmations',
+                      style: TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w900,
+                        color: AppColors.textDark,
+                      ),
+                    ),
+                  ),
+                ],
               ),
               const SizedBox(height: 14),
               Expanded(
@@ -1376,104 +1690,124 @@ class _FeesScreenState extends State<FeesScreen> {
 
     return Container(
       width: double.infinity,
-      margin: const EdgeInsets.fromLTRB(18, 18, 18, 0),
+      margin: const EdgeInsets.fromLTRB(18, 14, 18, 0),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.primaryBlue.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(
-          color: AppColors.primaryBlue.withValues(alpha: 0.18),
-        ),
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: AppColors.softBorder),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.045),
+            blurRadius: 18,
+            offset: const Offset(0, 10),
+          ),
+        ],
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Stack(
         children: [
-          const Row(
-            children: [
-              Icon(
-                Icons.account_balance_outlined,
-                color: AppColors.primaryBlue,
+          Positioned(
+            top: -26,
+            right: -24,
+            child: Container(
+              height: 82,
+              width: 82,
+              decoration: BoxDecoration(
+                color: AppColors.primaryBlue.withValues(alpha: 0.045),
+                shape: BoxShape.circle,
               ),
-              SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  'School Bank Details',
-                  style: TextStyle(
-                    fontSize: 17,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.textDark,
+            ),
+          ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  pngIconBox(
+                    imagePath: 'assets/icons/fees.png',
+                    fallbackIcon: Icons.account_balance_outlined,
+                    size: 48,
+                    padding: 10,
+                  ),
+                  const SizedBox(width: 12),
+                  const Expanded(
+                    child: Text(
+                      'School Bank Details',
+                      style: TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w900,
+                        color: AppColors.textDark,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              if (details == null)
+                Text(
+                  currentRole == 'Admin'
+                      ? 'No bank details added yet. Tap “Bank Details” to add the school payment account.'
+                      : 'School bank details are not available yet.',
+                  style: const TextStyle(
+                    color: AppColors.textGrey,
+                    height: 1.4,
+                  ),
+                )
+              else ...[
+                detailLine(
+                  icon: Icons.account_balance_outlined,
+                  text: 'Bank: ${details['bankName']}',
+                ),
+                const SizedBox(height: 6),
+                detailLine(
+                  icon: Icons.person_outline,
+                  text: 'Account Name: ${details['accountName']}',
+                ),
+                if (details['accountNumber'].toString().isNotEmpty) ...[
+                  const SizedBox(height: 6),
+                  detailLine(
+                    icon: Icons.numbers_outlined,
+                    text: 'Account Number: ${details['accountNumber']}',
+                  ),
+                ],
+                if (details['iban'].toString().isNotEmpty) ...[
+                  const SizedBox(height: 6),
+                  detailLine(
+                    icon: Icons.confirmation_number_outlined,
+                    text: 'IBAN: ${details['iban']}',
+                  ),
+                ],
+                if (details['rib'].toString().isNotEmpty) ...[
+                  const SizedBox(height: 6),
+                  detailLine(
+                    icon: Icons.receipt_long_outlined,
+                    text: 'RIB: ${details['rib']}',
+                  ),
+                ],
+                if (details['note'].toString().isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    'Note: ${details['note']}',
+                    style: const TextStyle(
+                      color: AppColors.textGrey,
+                      height: 1.4,
+                    ),
+                  ),
+                ],
+              ],
+              if (currentRole == 'Admin') ...[
+                const SizedBox(height: 12),
+                SizedBox(
+                  height: 42,
+                  child: OutlinedButton.icon(
+                    onPressed: showBankDetailsSheet,
+                    icon: const Icon(Icons.edit_outlined),
+                    label: const Text('Bank Details'),
                   ),
                 ),
-              ),
+              ],
             ],
           ),
-          const SizedBox(height: 12),
-          if (details == null)
-            Text(
-              currentRole == 'Admin'
-                  ? 'No bank details added yet. Tap “Bank Details” to add the school payment account.'
-                  : 'School bank details are not available yet.',
-              style: const TextStyle(
-                color: AppColors.textGrey,
-                height: 1.4,
-              ),
-            )
-          else ...[
-            Text(
-              'Bank: ${details['bankName']}',
-              style: const TextStyle(
-                color: AppColors.textDark,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            const SizedBox(height: 5),
-            Text(
-              'Account Name: ${details['accountName']}',
-              style: const TextStyle(color: AppColors.textGrey),
-            ),
-            if (details['accountNumber'].toString().isNotEmpty) ...[
-              const SizedBox(height: 5),
-              Text(
-                'Account Number: ${details['accountNumber']}',
-                style: const TextStyle(color: AppColors.textGrey),
-              ),
-            ],
-            if (details['iban'].toString().isNotEmpty) ...[
-              const SizedBox(height: 5),
-              Text(
-                'IBAN: ${details['iban']}',
-                style: const TextStyle(color: AppColors.textGrey),
-              ),
-            ],
-            if (details['rib'].toString().isNotEmpty) ...[
-              const SizedBox(height: 5),
-              Text(
-                'RIB: ${details['rib']}',
-                style: const TextStyle(color: AppColors.textGrey),
-              ),
-            ],
-            if (details['note'].toString().isNotEmpty) ...[
-              const SizedBox(height: 8),
-              Text(
-                'Note: ${details['note']}',
-                style: const TextStyle(
-                  color: AppColors.textGrey,
-                  height: 1.4,
-                ),
-              ),
-            ],
-          ],
-          if (currentRole == 'Admin') ...[
-            const SizedBox(height: 12),
-            SizedBox(
-              height: 42,
-              child: OutlinedButton.icon(
-                onPressed: showBankDetailsSheet,
-                icon: const Icon(Icons.edit_outlined),
-                label: const Text('Bank Details'),
-              ),
-            ),
-          ],
         ],
       ),
     );
@@ -1520,144 +1854,147 @@ class _FeesScreenState extends State<FeesScreen> {
     final note = fee['note'] ?? '';
     final createdAt = fee['createdAt'];
 
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.white,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: AppColors.border),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 10,
-            offset: const Offset(0, 5),
-          ),
-        ],
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            height: 52,
-            width: 52,
-            decoration: BoxDecoration(
-              color: AppColors.primaryBlue.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(16),
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(24),
+      child: Ink(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: AppColors.white,
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: AppColors.softBorder),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.045),
+              blurRadius: 18,
+              offset: const Offset(0, 10),
             ),
-            child: const Icon(
-              Icons.payments_outlined,
-              color: AppColors.primaryBlue,
-            ),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(
-                    fontSize: 17,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.textDark,
-                  ),
+          ],
+        ),
+        child: Stack(
+          children: [
+            Positioned(
+              top: -26,
+              right: -24,
+              child: Container(
+                height: 82,
+                width: 82,
+                decoration: BoxDecoration(
+                  color: statusColor(status).withValues(alpha: 0.045),
+                  shape: BoxShape.circle,
                 ),
-                const SizedBox(height: 6),
-                Text(
-                  'Amount: ${formatAmount(amount)}',
-                  style: const TextStyle(
-                    color: AppColors.primaryBlue,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 5),
-                if (studentName.toString().isNotEmpty)
-                  Text(
-                    'Student: $studentName',
-                    style: const TextStyle(color: AppColors.textGrey),
-                  ),
-                if (className.toString().isNotEmpty) ...[
-                  const SizedBox(height: 5),
-                  Text(
-                    'Class: $className',
-                    style: const TextStyle(color: AppColors.textGrey),
-                  ),
-                ],
-                if (note.toString().isNotEmpty) ...[
-                  const SizedBox(height: 8),
-                  Text(
-                    'Note: $note',
-                    style: const TextStyle(
-                      color: AppColors.textGrey,
-                      height: 1.4,
-                    ),
-                  ),
-                ],
-                const SizedBox(height: 8),
-                Text(
-                  'Created: ${formatDate(createdAt)}',
-                  style: const TextStyle(
-                    color: AppColors.textGrey,
-                    fontSize: 12,
-                  ),
-                ),
-                const SizedBox(height: 10),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 7,
-                      ),
-                      decoration: BoxDecoration(
-                        color: statusColor(status).withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Text(
-                        status,
-                        style: TextStyle(
-                          color: statusColor(status),
-                          fontWeight: FontWeight.bold,
-                          fontSize: 12,
-                        ),
-                      ),
-                    ),
-                    if (canCreateFee)
-                      TextButton(
-                        onPressed: () {
-                          showUpdateStatusSheet(fee);
-                        },
-                        child: const Text('Update'),
-                      ),
-                    if (isParent && status != 'Paid')
-                      TextButton.icon(
-                        onPressed: () {
-                          showPaymentConfirmationSheet(fee);
-                        },
-                        icon: const Icon(Icons.send_outlined),
-                        label: const Text('I Have Paid'),
-                      ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-          if (canCreateFee)
-            IconButton(
-              onPressed: () {
-                confirmDeleteFee(
-                  feeId: feeId,
-                  title: title,
-                );
-              },
-              icon: const Icon(
-                Icons.delete_outline,
-                color: AppColors.danger,
               ),
             ),
-        ],
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                pngIconBox(
+                  imagePath: 'assets/icons/fees.png',
+                  fallbackIcon: Icons.payments_outlined,
+                  color: statusColor(status),
+                  size: 56,
+                  padding: 11,
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: const TextStyle(
+                          fontSize: 17,
+                          fontWeight: FontWeight.w900,
+                          color: AppColors.textDark,
+                          height: 1.25,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          smallStatusChip(
+                            text: '${formatAmount(amount)} MAD',
+                            color: AppColors.primaryBlue,
+                          ),
+                          smallStatusChip(
+                            text: status,
+                            color: statusColor(status),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      if (studentName.toString().isNotEmpty)
+                        detailLine(
+                          icon: Icons.person_outline,
+                          text: 'Student: $studentName',
+                        ),
+                      if (className.toString().isNotEmpty) ...[
+                        const SizedBox(height: 6),
+                        detailLine(
+                          icon: Icons.class_outlined,
+                          text: 'Class: $className',
+                        ),
+                      ],
+                      const SizedBox(height: 6),
+                      detailLine(
+                        icon: Icons.calendar_today_outlined,
+                        text: 'Created: ${formatDate(createdAt)}',
+                      ),
+                      if (note.toString().isNotEmpty) ...[
+                        const SizedBox(height: 8),
+                        Text(
+                          'Note: $note',
+                          style: const TextStyle(
+                            color: AppColors.textGrey,
+                            height: 1.4,
+                          ),
+                        ),
+                      ],
+                      const SizedBox(height: 12),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          if (canCreateFee)
+                            OutlinedButton.icon(
+                              onPressed: () {
+                                showUpdateStatusSheet(fee);
+                              },
+                              icon: const Icon(Icons.edit_outlined),
+                              label: const Text('Update'),
+                            ),
+                          if (isParent && status != 'Paid')
+                            ElevatedButton.icon(
+                              onPressed: () {
+                                showPaymentConfirmationSheet(fee);
+                              },
+                              icon: const Icon(Icons.send_outlined),
+                              label: const Text('I Have Paid'),
+                            ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                if (canCreateFee)
+                  IconButton(
+                    onPressed: () {
+                      confirmDeleteFee(
+                        feeId: feeId,
+                        title: title,
+                      );
+                    },
+                    icon: const Icon(
+                      Icons.delete_outline,
+                      color: AppColors.danger,
+                    ),
+                  ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1669,11 +2006,18 @@ class _FeesScreenState extends State<FeesScreen> {
     final status = confirmation['status'] ?? 'Pending';
 
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.background,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.border),
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: AppColors.softBorder),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.035),
+            blurRadius: 14,
+            offset: const Offset(0, 8),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1852,9 +2196,12 @@ class _FeesScreenState extends State<FeesScreen> {
       ),
       child: Row(
         children: [
-          const Icon(
-            Icons.receipt_long_outlined,
+          pngIconBox(
+            imagePath: 'assets/icons/fees.png',
+            fallbackIcon: Icons.receipt_long_outlined,
             color: Colors.orange,
+            size: 44,
+            padding: 9,
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -1893,9 +2240,12 @@ class _FeesScreenState extends State<FeesScreen> {
       ),
       child: Row(
         children: [
-          const Icon(
-            Icons.receipt_long_outlined,
+          pngIconBox(
+            imagePath: 'assets/icons/fees.png',
+            fallbackIcon: Icons.receipt_long_outlined,
             color: AppColors.softGreen,
+            size: 44,
+            padding: 9,
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -1934,14 +2284,36 @@ class _FeesScreenState extends State<FeesScreen> {
 
     return Center(
       child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Text(
-          message,
-          textAlign: TextAlign.center,
-          style: const TextStyle(
-            color: AppColors.textGrey,
-            height: 1.5,
-          ),
+        padding: const EdgeInsets.all(28),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            pngIconBox(
+              imagePath: 'assets/icons/fees.png',
+              fallbackIcon: Icons.account_balance_wallet_outlined,
+              size: 88,
+              padding: 18,
+            ),
+            const SizedBox(height: 18),
+            const Text(
+              'No fee records yet',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: AppColors.textDark,
+                fontSize: 20,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: AppColors.textGrey,
+                height: 1.5,
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -2005,27 +2377,40 @@ class _FeesScreenState extends State<FeesScreen> {
                       ),
                     ),
                   )
-                : Column(
-                    children: [
-                      bankDetailsCard(),
-                      paymentConfirmationsPreview(),
-                      parentPaymentConfirmationsPreview(),
-                      Expanded(
-                        child: fees.isEmpty
-                            ? emptyState()
-                            : ListView.separated(
-                                padding:
-                                    const EdgeInsets.fromLTRB(18, 18, 18, 90),
-                                itemCount: fees.length,
-                                separatorBuilder: (context, index) {
-                                  return const SizedBox(height: 12);
-                                },
-                                itemBuilder: (context, index) {
-                                  return feeCard(fees[index]);
-                                },
-                              ),
-                      ),
-                    ],
+                : RefreshIndicator(
+                    onRefresh: loadInitialData,
+                    child: CustomScrollView(
+                      slivers: [
+                        SliverToBoxAdapter(
+                          child: Column(
+                            children: [
+                              headerCard(),
+                              bankDetailsCard(),
+                              paymentConfirmationsPreview(),
+                              parentPaymentConfirmationsPreview(),
+                            ],
+                          ),
+                        ),
+                        if (fees.isEmpty)
+                          SliverFillRemaining(
+                            hasScrollBody: false,
+                            child: emptyState(),
+                          )
+                        else
+                          SliverPadding(
+                            padding: const EdgeInsets.fromLTRB(18, 18, 18, 90),
+                            sliver: SliverList.separated(
+                              itemCount: fees.length,
+                              separatorBuilder: (context, index) {
+                                return const SizedBox(height: 12);
+                              },
+                              itemBuilder: (context, index) {
+                                return feeCard(fees[index]);
+                              },
+                            ),
+                          ),
+                      ],
+                    ),
                   ),
       ),
     );

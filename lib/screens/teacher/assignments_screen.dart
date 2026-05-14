@@ -555,6 +555,221 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
     }
   }
 
+  Widget sheetHandle() {
+    return Center(
+      child: Container(
+        height: 5,
+        width: 44,
+        decoration: BoxDecoration(
+          color: AppColors.border,
+          borderRadius: BorderRadius.circular(20),
+        ),
+      ),
+    );
+  }
+
+  Widget pngIconBox({
+    required String imagePath,
+    required IconData fallbackIcon,
+    Color color = AppColors.primaryBlue,
+    double size = 54,
+    double padding = 11,
+  }) {
+    return Container(
+      height: size,
+      width: size,
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(size * 0.36),
+      ),
+      child: Padding(
+        padding: EdgeInsets.all(padding),
+        child: Image.asset(
+          imagePath,
+          fit: BoxFit.contain,
+          errorBuilder: (context, error, stackTrace) {
+            return Icon(
+              fallbackIcon,
+              color: color,
+              size: size * 0.52,
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  Widget headerCard() {
+    String title = 'Assignments';
+    String subtitle = 'View and manage class assignments.';
+
+    if (currentRole == 'Student') {
+      title = 'My Assignments';
+      subtitle = 'Check your assignments and submit your comments.';
+    }
+
+    if (currentRole == 'Parent') {
+      title = 'Child Assignments';
+      subtitle = 'Follow your child’s assignment progress.';
+    }
+
+    if (currentRole == 'Admin') {
+      title = 'Assignment Records';
+      subtitle = 'Review assignments and student submissions.';
+    }
+
+    if (currentRole == 'Teacher') {
+      title = 'Assignments';
+      subtitle = 'Create assignments and track submissions.';
+    }
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: AppColors.cardBlueGradient,
+        borderRadius: BorderRadius.circular(28),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.primaryBlue.withValues(alpha: 0.22),
+            blurRadius: 22,
+            offset: const Offset(0, 12),
+          ),
+        ],
+      ),
+      child: Stack(
+        children: [
+          Positioned(
+            top: -36,
+            right: -28,
+            child: Container(
+              height: 120,
+              width: 120,
+              decoration: BoxDecoration(
+                color: AppColors.white.withValues(alpha: 0.08),
+                shape: BoxShape.circle,
+              ),
+            ),
+          ),
+          Positioned(
+            bottom: -42,
+            left: -34,
+            child: Container(
+              height: 115,
+              width: 115,
+              decoration: BoxDecoration(
+                color: AppColors.white.withValues(alpha: 0.07),
+                shape: BoxShape.circle,
+              ),
+            ),
+          ),
+          Row(
+            children: [
+              Container(
+                height: 66,
+                width: 66,
+                decoration: BoxDecoration(
+                  color: AppColors.white.withValues(alpha: 0.16),
+                  borderRadius: BorderRadius.circular(24),
+                  border: Border.all(
+                    color: AppColors.white.withValues(alpha: 0.22),
+                  ),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(13),
+                  child: Image.asset(
+                    'assets/icons/assignments.png',
+                    fit: BoxFit.contain,
+                    errorBuilder: (context, error, stackTrace) {
+                      return const Icon(
+                        Icons.assignment_outlined,
+                        color: AppColors.white,
+                        size: 34,
+                      );
+                    },
+                  ),
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        color: AppColors.white,
+                        fontSize: 24,
+                        fontWeight: FontWeight.w900,
+                        height: 1.15,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      '$subtitle ${assignments.length} assignment(s).',
+                      style: TextStyle(
+                        color: AppColors.white.withValues(alpha: 0.85),
+                        fontSize: 13,
+                        height: 1.45,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget detailLine({
+    required IconData icon,
+    required String text,
+  }) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(
+          icon,
+          color: AppColors.textLight,
+          size: 16,
+        ),
+        const SizedBox(width: 6),
+        Expanded(
+          child: Text(
+            text,
+            style: const TextStyle(
+              color: AppColors.textGrey,
+              height: 1.35,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget smallStatusChip({
+    required String text,
+    required Color color,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Text(
+        text,
+        style: TextStyle(
+          color: color,
+          fontWeight: FontWeight.w800,
+          fontSize: 12,
+        ),
+      ),
+    );
+  }
+
   void showAddAssignmentSheet() {
     titleController.clear();
     descriptionController.clear();
@@ -573,7 +788,7 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
       backgroundColor: AppColors.white,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(
-          top: Radius.circular(24),
+          top: Radius.circular(28),
         ),
       ),
       builder: (sheetContext) {
@@ -583,7 +798,7 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
               padding: EdgeInsets.only(
                 left: 24,
                 right: 24,
-                top: 24,
+                top: 18,
                 bottom: MediaQuery.of(sheetContext).viewInsets.bottom + 24,
               ),
               child: SingleChildScrollView(
@@ -591,13 +806,28 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
-                      'Create Assignment',
-                      style: TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.textDark,
-                      ),
+                    sheetHandle(),
+                    const SizedBox(height: 18),
+                    Row(
+                      children: [
+                        pngIconBox(
+                          imagePath: 'assets/icons/assignments.png',
+                          fallbackIcon: Icons.assignment_outlined,
+                          size: 48,
+                          padding: 10,
+                        ),
+                        const SizedBox(width: 12),
+                        const Expanded(
+                          child: Text(
+                            'Create Assignment',
+                            style: TextStyle(
+                              fontSize: 22,
+                              fontWeight: FontWeight.w900,
+                              color: AppColors.textDark,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 18),
                     TextField(
@@ -738,9 +968,9 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
                       child: Container(
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
-                          color: AppColors.white,
-                          borderRadius: BorderRadius.circular(14),
-                          border: Border.all(color: AppColors.border),
+                          color: AppColors.inputBackground,
+                          borderRadius: BorderRadius.circular(18),
+                          border: Border.all(color: AppColors.softBorder),
                         ),
                         child: Row(
                           children: [
@@ -815,7 +1045,7 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
       backgroundColor: AppColors.white,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(
-          top: Radius.circular(24),
+          top: Radius.circular(28),
         ),
       ),
       builder: (_) {
@@ -841,13 +1071,26 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    assignment['title'] ?? 'Assignment Records',
-                    style: const TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.textDark,
-                    ),
+                  Row(
+                    children: [
+                      pngIconBox(
+                        imagePath: 'assets/icons/assignments.png',
+                        fallbackIcon: Icons.assignment_outlined,
+                        size: 46,
+                        padding: 10,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          assignment['title'] ?? 'Assignment Records',
+                          style: const TextStyle(
+                            fontSize: 21,
+                            fontWeight: FontWeight.w900,
+                            color: AppColors.textDark,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 8),
                   Text(
@@ -944,22 +1187,9 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
     final submission = getStudentSubmission(assignmentId);
     final submitted = submission != null;
 
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-      decoration: BoxDecoration(
-        color: submitted
-            ? AppColors.softGreen.withValues(alpha: 0.12)
-            : AppColors.danger.withValues(alpha: 0.10),
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Text(
-        submitted ? 'Submitted' : 'Pending',
-        style: TextStyle(
-          color: submitted ? AppColors.softGreen : AppColors.danger,
-          fontWeight: FontWeight.bold,
-          fontSize: 12,
-        ),
-      ),
+    return smallStatusChip(
+      text: submitted ? 'Submitted' : 'Pending',
+      color: submitted ? AppColors.softGreen : AppColors.danger,
     );
   }
 
@@ -1029,151 +1259,169 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
     final teacherName = assignment['teacherName'] ?? '';
     final dueDate = assignment['dueDate'];
 
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.white,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: AppColors.border),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 10,
-            offset: const Offset(0, 5),
-          ),
-        ],
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            height: 52,
-            width: 52,
-            decoration: BoxDecoration(
-              color: AppColors.primaryBlue.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(16),
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(24),
+      child: Ink(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: AppColors.white,
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: AppColors.softBorder),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.045),
+              blurRadius: 18,
+              offset: const Offset(0, 10),
             ),
-            child: const Icon(
-              Icons.assignment_outlined,
-              color: AppColors.primaryBlue,
-            ),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(
-                    fontSize: 17,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.textDark,
-                  ),
+          ],
+        ),
+        child: Stack(
+          children: [
+            Positioned(
+              top: -26,
+              right: -24,
+              child: Container(
+                height: 82,
+                width: 82,
+                decoration: BoxDecoration(
+                  color: AppColors.primaryBlue.withValues(alpha: 0.045),
+                  shape: BoxShape.circle,
                 ),
-                const SizedBox(height: 5),
-                Text(
-                  subjectName.isEmpty ? 'No subject' : subjectName,
-                  style: const TextStyle(
-                    color: AppColors.textGrey,
-                  ),
-                ),
-                const SizedBox(height: 5),
-                Text(
-                  className.isEmpty ? 'No class' : className,
-                  style: const TextStyle(
-                    color: AppColors.textGrey,
-                  ),
-                ),
-                const SizedBox(height: 5),
-                Text(
-                  teacherName.isEmpty
-                      ? 'Teacher not assigned'
-                      : 'Teacher: $teacherName',
-                  style: const TextStyle(
-                    color: AppColors.textGrey,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  description,
-                  style: const TextStyle(
-                    color: AppColors.textDark,
-                    height: 1.4,
-                  ),
-                ),
-                const SizedBox(height: 10),
-                Text(
-                  'Due: ${formatDueDate(dueDate)}',
-                  style: const TextStyle(
-                    color: AppColors.primaryBlue,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 13,
-                  ),
-                ),
-                if (isStudent) ...[
-                  const SizedBox(height: 10),
-                  studentSubmissionStatus(assignmentId),
-                  const SizedBox(height: 10),
-                  SizedBox(
-                    height: 42,
-                    child: ElevatedButton.icon(
-                      onPressed: () async {
-                        final updated = await Navigator.push<bool>(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => AssignmentSubmitScreen(
-                              assignment: assignment,
-                            ),
-                          ),
-                        );
-
-                        if (updated == true) {
-                          await loadInitialData();
-
-                          if (!mounted) return;
-
-                          showSnackBar('Assignment submitted successfully');
-                        }
-                      },
-                      icon: const Icon(Icons.comment_outlined),
-                      label: Text(
-                        getStudentSubmission(assignmentId) == null
-                            ? 'Submit Comment'
-                            : 'Update Comment',
-                      ),
-                    ),
-                  ),
-                ],
-                if (isParent) parentProgressWidget(assignment),
-                if (canCreateAssignment) adminTeacherProgressWidget(assignment),
-                if (canCreateAssignment) ...[
-                  const SizedBox(height: 10),
-                  SizedBox(
-                    height: 42,
-                    child: OutlinedButton.icon(
-                      onPressed: () {
-                        showAssignmentRecords(assignment);
-                      },
-                      icon: const Icon(Icons.list_alt_outlined),
-                      label: const Text('View Records'),
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
-          if (canCreateAssignment)
-            IconButton(
-              onPressed: () {
-                confirmDelete(assignmentId, title);
-              },
-              icon: const Icon(
-                Icons.delete_outline,
-                color: AppColors.danger,
               ),
             ),
-        ],
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                pngIconBox(
+                  imagePath: 'assets/icons/assignments.png',
+                  fallbackIcon: Icons.assignment_outlined,
+                  size: 56,
+                  padding: 11,
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: const TextStyle(
+                          fontSize: 17,
+                          fontWeight: FontWeight.w900,
+                          color: AppColors.textDark,
+                          height: 1.25,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          smallStatusChip(
+                            text: subjectName.isEmpty ? 'No subject' : subjectName,
+                            color: AppColors.primaryBlue,
+                          ),
+                          smallStatusChip(
+                            text: 'Due: ${formatDueDate(dueDate)}',
+                            color: AppColors.softGreen,
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      if (className.toString().isNotEmpty)
+                        detailLine(
+                          icon: Icons.class_outlined,
+                          text: 'Class: $className',
+                        )
+                      else
+                        detailLine(
+                          icon: Icons.class_outlined,
+                          text: 'No class',
+                        ),
+                      const SizedBox(height: 6),
+                      detailLine(
+                        icon: Icons.person_outline,
+                        text: teacherName.isEmpty
+                            ? 'Teacher not assigned'
+                            : 'Teacher: $teacherName',
+                      ),
+                      if (description.toString().isNotEmpty) ...[
+                        const SizedBox(height: 10),
+                        Text(
+                          description,
+                          style: const TextStyle(
+                            color: AppColors.textDark,
+                            height: 1.45,
+                          ),
+                        ),
+                      ],
+                      if (isStudent) ...[
+                        const SizedBox(height: 12),
+                        studentSubmissionStatus(assignmentId),
+                        const SizedBox(height: 10),
+                        SizedBox(
+                          height: 44,
+                          child: ElevatedButton.icon(
+                            onPressed: () async {
+                              final updated = await Navigator.push<bool>(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => AssignmentSubmitScreen(
+                                    assignment: assignment,
+                                  ),
+                                ),
+                              );
+
+                              if (updated == true) {
+                                await loadInitialData();
+
+                                if (!mounted) return;
+
+                                showSnackBar('Assignment submitted successfully');
+                              }
+                            },
+                            icon: const Icon(Icons.comment_outlined),
+                            label: Text(
+                              getStudentSubmission(assignmentId) == null
+                                  ? 'Submit Comment'
+                                  : 'Update Comment',
+                            ),
+                          ),
+                        ),
+                      ],
+                      if (isParent) parentProgressWidget(assignment),
+                      if (canCreateAssignment) adminTeacherProgressWidget(assignment),
+                      if (canCreateAssignment) ...[
+                        const SizedBox(height: 10),
+                        SizedBox(
+                          height: 44,
+                          child: OutlinedButton.icon(
+                            onPressed: () {
+                              showAssignmentRecords(assignment);
+                            },
+                            icon: const Icon(Icons.list_alt_outlined),
+                            label: const Text('View Records'),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                if (canCreateAssignment)
+                  IconButton(
+                    onPressed: () {
+                      confirmDelete(assignmentId, title);
+                    },
+                    icon: const Icon(
+                      Icons.delete_outline,
+                      color: AppColors.danger,
+                    ),
+                  ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1197,14 +1445,36 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
 
     return Center(
       child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Text(
-          message,
-          textAlign: TextAlign.center,
-          style: const TextStyle(
-            color: AppColors.textGrey,
-            height: 1.5,
-          ),
+        padding: const EdgeInsets.all(28),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            pngIconBox(
+              imagePath: 'assets/icons/assignments.png',
+              fallbackIcon: Icons.assignment_outlined,
+              size: 88,
+              padding: 18,
+            ),
+            const SizedBox(height: 18),
+            const Text(
+              'No assignments yet',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: AppColors.textDark,
+                fontSize: 20,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: AppColors.textGrey,
+                height: 1.5,
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -1270,15 +1540,25 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
                   )
                 : assignments.isEmpty
                     ? emptyState()
-                    : ListView.separated(
-                        padding: const EdgeInsets.fromLTRB(18, 18, 18, 90),
-                        itemCount: assignments.length,
-                        separatorBuilder: (context, index) {
-                          return const SizedBox(height: 12);
-                        },
-                        itemBuilder: (context, index) {
-                          return assignmentCard(assignments[index]);
-                        },
+                    : RefreshIndicator(
+                        onRefresh: loadInitialData,
+                        child: ListView.separated(
+                          padding: const EdgeInsets.fromLTRB(18, 18, 18, 90),
+                          itemCount: assignments.length + 1,
+                          separatorBuilder: (context, index) {
+                            return const SizedBox(height: 12);
+                          },
+                          itemBuilder: (context, index) {
+                            if (index == 0) {
+                              return Padding(
+                                padding: const EdgeInsets.only(bottom: 12),
+                                child: headerCard(),
+                              );
+                            }
+
+                            return assignmentCard(assignments[index - 1]);
+                          },
+                        ),
                       ),
       ),
     );

@@ -341,32 +341,6 @@ class _TimetableScreenState extends State<TimetableScreen> {
     return '$hour:$minute';
   }
 
-  Future<void> pickStartTime() async {
-    final pickedTime = await showTimePicker(
-      context: context,
-      initialTime: selectedStartTime,
-    );
-
-    if (pickedTime == null) return;
-
-    setState(() {
-      selectedStartTime = pickedTime;
-    });
-  }
-
-  Future<void> pickEndTime() async {
-    final pickedTime = await showTimePicker(
-      context: context,
-      initialTime: selectedEndTime,
-    );
-
-    if (pickedTime == null) return;
-
-    setState(() {
-      selectedEndTime = pickedTime;
-    });
-  }
-
   Future<void> saveTimetable() async {
     final room = roomController.text.trim();
     final note = noteController.text.trim();
@@ -517,6 +491,97 @@ class _TimetableScreenState extends State<TimetableScreen> {
     noteController.clear();
   }
 
+  Widget sheetHandle() {
+    return Center(
+      child: Container(
+        height: 5,
+        width: 44,
+        decoration: BoxDecoration(
+          color: AppColors.border,
+          borderRadius: BorderRadius.circular(20),
+        ),
+      ),
+    );
+  }
+
+  Widget pngIconBox({
+    required String imagePath,
+    required IconData fallbackIcon,
+    Color color = AppColors.primaryBlue,
+    double size = 54,
+    double padding = 11,
+  }) {
+    return Container(
+      height: size,
+      width: size,
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(size * 0.36),
+      ),
+      child: Padding(
+        padding: EdgeInsets.all(padding),
+        child: Image.asset(
+          imagePath,
+          fit: BoxFit.contain,
+          errorBuilder: (context, error, stackTrace) {
+            return Icon(
+              fallbackIcon,
+              color: color,
+              size: size * 0.52,
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  Widget timeBox({
+    required String label,
+    required TimeOfDay value,
+    required VoidCallback onTap,
+  }) {
+    return Expanded(
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(18),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(18),
+          onTap: onTap,
+          child: Ink(
+            padding: const EdgeInsets.all(15),
+            decoration: BoxDecoration(
+              color: AppColors.inputBackground,
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: AppColors.softBorder),
+            ),
+            child: Row(
+              children: [
+                const Icon(
+                  Icons.access_time_outlined,
+                  color: AppColors.primaryBlue,
+                  size: 20,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    '$label: ${formatTimeOfDay(value)}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: AppColors.textDark,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 13,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   void showAddTimetableSheet() {
     resetForm();
 
@@ -526,7 +591,7 @@ class _TimetableScreenState extends State<TimetableScreen> {
       backgroundColor: AppColors.white,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(
-          top: Radius.circular(24),
+          top: Radius.circular(28),
         ),
       ),
       builder: (sheetContext) {
@@ -536,7 +601,7 @@ class _TimetableScreenState extends State<TimetableScreen> {
               padding: EdgeInsets.only(
                 left: 24,
                 right: 24,
-                top: 24,
+                top: 18,
                 bottom: MediaQuery.of(sheetContext).viewInsets.bottom + 24,
               ),
               child: SingleChildScrollView(
@@ -544,13 +609,28 @@ class _TimetableScreenState extends State<TimetableScreen> {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
-                      'Create Timetable',
-                      style: TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.textDark,
-                      ),
+                    sheetHandle(),
+                    const SizedBox(height: 18),
+                    Row(
+                      children: [
+                        pngIconBox(
+                          imagePath: 'assets/icons/timetable.png',
+                          fallbackIcon: Icons.calendar_month_outlined,
+                          size: 48,
+                          padding: 10,
+                        ),
+                        const SizedBox(width: 12),
+                        const Expanded(
+                          child: Text(
+                            'Create Timetable',
+                            style: TextStyle(
+                              fontSize: 22,
+                              fontWeight: FontWeight.w900,
+                              color: AppColors.textDark,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 18),
                     DropdownButtonFormField<String>(
@@ -576,70 +656,38 @@ class _TimetableScreenState extends State<TimetableScreen> {
                     const SizedBox(height: 14),
                     Row(
                       children: [
-                        Expanded(
-                          child: InkWell(
-                            borderRadius: BorderRadius.circular(14),
-                            onTap: () async {
-                              final pickedTime = await showTimePicker(
-                                context: sheetContext,
-                                initialTime: selectedStartTime,
-                              );
+                        timeBox(
+                          label: 'Start',
+                          value: selectedStartTime,
+                          onTap: () async {
+                            final pickedTime = await showTimePicker(
+                              context: sheetContext,
+                              initialTime: selectedStartTime,
+                            );
 
-                              if (pickedTime == null) return;
+                            if (pickedTime == null) return;
 
-                              setModalState(() {
-                                selectedStartTime = pickedTime;
-                              });
-                            },
-                            child: Container(
-                              padding: const EdgeInsets.all(16),
-                              decoration: BoxDecoration(
-                                color: AppColors.white,
-                                borderRadius: BorderRadius.circular(14),
-                                border: Border.all(color: AppColors.border),
-                              ),
-                              child: Text(
-                                'Start: ${formatTimeOfDay(selectedStartTime)}',
-                                style: const TextStyle(
-                                  color: AppColors.textDark,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ),
-                          ),
+                            setModalState(() {
+                              selectedStartTime = pickedTime;
+                            });
+                          },
                         ),
                         const SizedBox(width: 12),
-                        Expanded(
-                          child: InkWell(
-                            borderRadius: BorderRadius.circular(14),
-                            onTap: () async {
-                              final pickedTime = await showTimePicker(
-                                context: sheetContext,
-                                initialTime: selectedEndTime,
-                              );
+                        timeBox(
+                          label: 'End',
+                          value: selectedEndTime,
+                          onTap: () async {
+                            final pickedTime = await showTimePicker(
+                              context: sheetContext,
+                              initialTime: selectedEndTime,
+                            );
 
-                              if (pickedTime == null) return;
+                            if (pickedTime == null) return;
 
-                              setModalState(() {
-                                selectedEndTime = pickedTime;
-                              });
-                            },
-                            child: Container(
-                              padding: const EdgeInsets.all(16),
-                              decoration: BoxDecoration(
-                                color: AppColors.white,
-                                borderRadius: BorderRadius.circular(14),
-                                border: Border.all(color: AppColors.border),
-                              ),
-                              child: Text(
-                                'End: ${formatTimeOfDay(selectedEndTime)}',
-                                style: const TextStyle(
-                                  color: AppColors.textDark,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ),
-                          ),
+                            setModalState(() {
+                              selectedEndTime = pickedTime;
+                            });
+                          },
                         ),
                       ],
                     ),
@@ -830,6 +878,139 @@ class _TimetableScreenState extends State<TimetableScreen> {
     );
   }
 
+  Color dayColor(String day) {
+    if (day == 'Monday') return AppColors.primaryBlue;
+    if (day == 'Tuesday') return AppColors.softGreen;
+    if (day == 'Wednesday') return Colors.orange;
+    if (day == 'Thursday') return Colors.purple;
+    if (day == 'Friday') return Colors.teal;
+    return AppColors.danger;
+  }
+
+  Widget headerCard() {
+    String title = 'Timetable';
+    String subtitle = 'View your weekly school schedule.';
+
+    if (currentRole == 'Admin') {
+      title = 'Timetable Management';
+      subtitle = 'Create and manage class schedules.';
+    }
+
+    if (currentRole == 'Teacher') {
+      title = 'My Timetable';
+      subtitle = 'View the classes assigned to your teaching schedule.';
+    }
+
+    if (currentRole == 'Parent') {
+      title = 'Child Timetable';
+      subtitle = 'Follow your child’s weekly class schedule.';
+    }
+
+    if (currentRole == 'Student') {
+      title = 'My Timetable';
+      subtitle = 'Check your weekly classes and rooms.';
+    }
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: AppColors.cardBlueGradient,
+        borderRadius: BorderRadius.circular(28),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.primaryBlue.withValues(alpha: 0.22),
+            blurRadius: 22,
+            offset: const Offset(0, 12),
+          ),
+        ],
+      ),
+      child: Stack(
+        children: [
+          Positioned(
+            top: -36,
+            right: -28,
+            child: Container(
+              height: 120,
+              width: 120,
+              decoration: BoxDecoration(
+                color: AppColors.white.withValues(alpha: 0.08),
+                shape: BoxShape.circle,
+              ),
+            ),
+          ),
+          Positioned(
+            bottom: -42,
+            left: -34,
+            child: Container(
+              height: 115,
+              width: 115,
+              decoration: BoxDecoration(
+                color: AppColors.white.withValues(alpha: 0.07),
+                shape: BoxShape.circle,
+              ),
+            ),
+          ),
+          Row(
+            children: [
+              Container(
+                height: 66,
+                width: 66,
+                decoration: BoxDecoration(
+                  color: AppColors.white.withValues(alpha: 0.16),
+                  borderRadius: BorderRadius.circular(24),
+                  border: Border.all(
+                    color: AppColors.white.withValues(alpha: 0.22),
+                  ),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(13),
+                  child: Image.asset(
+                    'assets/icons/timetable.png',
+                    fit: BoxFit.contain,
+                    errorBuilder: (context, error, stackTrace) {
+                      return const Icon(
+                        Icons.calendar_month_outlined,
+                        color: AppColors.white,
+                        size: 34,
+                      );
+                    },
+                  ),
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        color: AppColors.white,
+                        fontSize: 24,
+                        fontWeight: FontWeight.w900,
+                        height: 1.15,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      '$subtitle ${timetableItems.length} record(s).',
+                      style: TextStyle(
+                        color: AppColors.white.withValues(alpha: 0.85),
+                        fontSize: 13,
+                        height: 1.45,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget timetableCard(Map<String, dynamic> item) {
     final timetableId = item['id'] ?? '';
     final subjectName = item['subjectName'] ?? 'No Subject';
@@ -840,111 +1021,157 @@ class _TimetableScreenState extends State<TimetableScreen> {
     final room = item['room'] ?? '';
     final note = item['note'] ?? '';
 
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.white,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: AppColors.border),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 10,
-            offset: const Offset(0, 5),
-          ),
-        ],
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            height: 52,
-            width: 52,
-            decoration: BoxDecoration(
-              color: AppColors.primaryBlue.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(16),
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(24),
+      child: Ink(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: AppColors.white,
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: AppColors.softBorder),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.045),
+              blurRadius: 18,
+              offset: const Offset(0, 10),
             ),
-            child: const Icon(
-              Icons.schedule_outlined,
-              color: AppColors.primaryBlue,
-            ),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  subjectName,
-                  style: const TextStyle(
-                    fontSize: 17,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.textDark,
-                  ),
+          ],
+        ),
+        child: Stack(
+          children: [
+            Positioned(
+              top: -26,
+              right: -24,
+              child: Container(
+                height: 82,
+                width: 82,
+                decoration: BoxDecoration(
+                  color: AppColors.primaryBlue.withValues(alpha: 0.045),
+                  shape: BoxShape.circle,
                 ),
-                const SizedBox(height: 6),
-                Text(
-                  '$startTime - $endTime',
-                  style: const TextStyle(
-                    color: AppColors.primaryBlue,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                if (className.toString().isNotEmpty) ...[
-                  const SizedBox(height: 5),
-                  Text(
-                    'Class: $className',
-                    style: const TextStyle(
-                      color: AppColors.textGrey,
-                    ),
-                  ),
-                ],
-                if (teacherName.toString().isNotEmpty) ...[
-                  const SizedBox(height: 5),
-                  Text(
-                    'Teacher: $teacherName',
-                    style: const TextStyle(
-                      color: AppColors.textGrey,
-                    ),
-                  ),
-                ],
-                if (room.toString().isNotEmpty) ...[
-                  const SizedBox(height: 5),
-                  Text(
-                    'Room: $room',
-                    style: const TextStyle(
-                      color: AppColors.textGrey,
-                    ),
-                  ),
-                ],
-                if (note.toString().isNotEmpty) ...[
-                  const SizedBox(height: 8),
-                  Text(
-                    'Note: $note',
-                    style: const TextStyle(
-                      color: AppColors.textGrey,
-                      height: 1.4,
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
-          if (canCreateTimetable)
-            IconButton(
-              onPressed: () {
-                confirmDelete(
-                  timetableId: timetableId,
-                  subjectName: subjectName,
-                );
-              },
-              icon: const Icon(
-                Icons.delete_outline,
-                color: AppColors.danger,
               ),
             ),
-        ],
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                pngIconBox(
+                  imagePath: 'assets/icons/timetable.png',
+                  fallbackIcon: Icons.schedule_outlined,
+                  size: 54,
+                  padding: 11,
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        subjectName,
+                        style: const TextStyle(
+                          fontSize: 17,
+                          fontWeight: FontWeight.w900,
+                          color: AppColors.textDark,
+                          height: 1.25,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 7,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AppColors.primaryBlue.withValues(alpha: 0.10),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Text(
+                          '$startTime - $endTime',
+                          style: const TextStyle(
+                            color: AppColors.primaryBlue,
+                            fontWeight: FontWeight.w900,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ),
+                      if (className.toString().isNotEmpty) ...[
+                        const SizedBox(height: 8),
+                        detailLine(
+                          icon: Icons.class_outlined,
+                          text: 'Class: $className',
+                        ),
+                      ],
+                      if (teacherName.toString().isNotEmpty) ...[
+                        const SizedBox(height: 6),
+                        detailLine(
+                          icon: Icons.person_outline,
+                          text: 'Teacher: $teacherName',
+                        ),
+                      ],
+                      if (room.toString().isNotEmpty) ...[
+                        const SizedBox(height: 6),
+                        detailLine(
+                          icon: Icons.meeting_room_outlined,
+                          text: 'Room: $room',
+                        ),
+                      ],
+                      if (note.toString().isNotEmpty) ...[
+                        const SizedBox(height: 8),
+                        Text(
+                          'Note: $note',
+                          style: const TextStyle(
+                            color: AppColors.textGrey,
+                            height: 1.4,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                if (canCreateTimetable)
+                  IconButton(
+                    onPressed: () {
+                      confirmDelete(
+                        timetableId: timetableId,
+                        subjectName: subjectName,
+                      );
+                    },
+                    icon: const Icon(
+                      Icons.delete_outline,
+                      color: AppColors.danger,
+                    ),
+                  ),
+              ],
+            ),
+          ],
+        ),
       ),
+    );
+  }
+
+  Widget detailLine({
+    required IconData icon,
+    required String text,
+  }) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(
+          icon,
+          color: AppColors.textLight,
+          size: 16,
+        ),
+        const SizedBox(width: 6),
+        Expanded(
+          child: Text(
+            text,
+            style: const TextStyle(
+              color: AppColors.textGrey,
+              height: 1.35,
+            ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -957,16 +1184,56 @@ class _TimetableScreenState extends State<TimetableScreen> {
       return const SizedBox();
     }
 
+    final color = dayColor(day);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          day,
-          style: const TextStyle(
-            fontSize: 20,
-            fontWeight: FontWeight.bold,
-            color: AppColors.textDark,
-          ),
+        Row(
+          children: [
+            Container(
+              height: 38,
+              width: 38,
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.10),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Icon(
+                Icons.today_outlined,
+                color: color,
+                size: 20,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                day,
+                style: const TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w900,
+                  color: AppColors.textDark,
+                ),
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(
+                horizontal: 10,
+                vertical: 7,
+              ),
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.10),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Text(
+                '${items.length} class(es)',
+                style: TextStyle(
+                  color: color,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ),
+          ],
         ),
         const SizedBox(height: 12),
         ListView.separated(
@@ -1008,14 +1275,36 @@ class _TimetableScreenState extends State<TimetableScreen> {
 
     return Center(
       child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Text(
-          message,
-          textAlign: TextAlign.center,
-          style: const TextStyle(
-            color: AppColors.textGrey,
-            height: 1.5,
-          ),
+        padding: const EdgeInsets.all(28),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            pngIconBox(
+              imagePath: 'assets/icons/timetable.png',
+              fallbackIcon: Icons.calendar_month_outlined,
+              size: 88,
+              padding: 18,
+            ),
+            const SizedBox(height: 18),
+            const Text(
+              'No timetable yet',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: AppColors.textDark,
+                fontSize: 20,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: AppColors.textGrey,
+                height: 1.5,
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -1081,13 +1370,21 @@ class _TimetableScreenState extends State<TimetableScreen> {
                   )
                 : timetableItems.isEmpty
                     ? emptyState()
-                    : SingleChildScrollView(
-                        padding: const EdgeInsets.fromLTRB(18, 18, 18, 90),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: days.map((day) {
-                            return daySection(day);
-                          }).toList(),
+                    : RefreshIndicator(
+                        onRefresh: loadInitialData,
+                        child: SingleChildScrollView(
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          padding: const EdgeInsets.fromLTRB(18, 18, 18, 90),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              headerCard(),
+                              const SizedBox(height: 24),
+                              ...days.map((day) {
+                                return daySection(day);
+                              }),
+                            ],
+                          ),
                         ),
                       ),
       ),

@@ -817,6 +817,46 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
     return Icons.campaign_outlined;
   }
 
+  String categoryImagePath(String category) {
+    if (category == 'Academic') return 'assets/icons/results.png';
+    if (category == 'Fees') return 'assets/icons/fees.png';
+    if (category == 'Exams') return 'assets/icons/add_marks.png';
+    if (category == 'Events') return 'assets/icons/timetable.png';
+    if (category == 'Urgent') return 'assets/icons/notifications.png';
+
+    return 'assets/icons/announcements.png';
+  }
+
+  Widget categoryPngIcon({
+    required String category,
+    required String priority,
+  }) {
+    final color = priorityColor(priority);
+
+    return Container(
+      height: 54,
+      width: 54,
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(11),
+        child: Image.asset(
+          categoryImagePath(category),
+          fit: BoxFit.contain,
+          errorBuilder: (context, error, stackTrace) {
+            return Icon(
+              categoryIcon(category),
+              color: color,
+              size: 28,
+            );
+          },
+        ),
+      ),
+    );
+  }
+
   String formatDate(dynamic value) {
     if (value is Timestamp) {
       final date = value.toDate();
@@ -875,17 +915,9 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Container(
-                    height: 52,
-                    width: 52,
-                    decoration: BoxDecoration(
-                      color: priorityColor(priority).withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: Icon(
-                      categoryIcon(category),
-                      color: priorityColor(priority),
-                    ),
+                  categoryPngIcon(
+                    category: category,
+                    priority: priority,
                   ),
                   const SizedBox(width: 14),
                   Expanded(
@@ -1114,6 +1146,109 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
     );
   }
 
+  Widget headerCard() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: AppColors.cardBlueGradient,
+        borderRadius: BorderRadius.circular(28),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.primaryBlue.withValues(alpha: 0.22),
+            blurRadius: 22,
+            offset: const Offset(0, 12),
+          ),
+        ],
+      ),
+      child: Stack(
+        children: [
+          Positioned(
+            top: -36,
+            right: -28,
+            child: Container(
+              height: 120,
+              width: 120,
+              decoration: BoxDecoration(
+                color: AppColors.white.withValues(alpha: 0.08),
+                shape: BoxShape.circle,
+              ),
+            ),
+          ),
+          Positioned(
+            bottom: -42,
+            left: -34,
+            child: Container(
+              height: 115,
+              width: 115,
+              decoration: BoxDecoration(
+                color: AppColors.white.withValues(alpha: 0.07),
+                shape: BoxShape.circle,
+              ),
+            ),
+          ),
+          Row(
+            children: [
+              Container(
+                height: 66,
+                width: 66,
+                decoration: BoxDecoration(
+                  color: AppColors.white.withValues(alpha: 0.16),
+                  borderRadius: BorderRadius.circular(24),
+                  border: Border.all(
+                    color: AppColors.white.withValues(alpha: 0.22),
+                  ),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(13),
+                  child: Image.asset(
+                    'assets/icons/announcements.png',
+                    fit: BoxFit.contain,
+                    errorBuilder: (context, error, stackTrace) {
+                      return const Icon(
+                        Icons.campaign_outlined,
+                        color: AppColors.white,
+                        size: 34,
+                      );
+                    },
+                  ),
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      isAdmin ? 'Announcement Management' : 'Announcements',
+                      style: const TextStyle(
+                        color: AppColors.white,
+                        fontSize: 24,
+                        fontWeight: FontWeight.w900,
+                        height: 1.15,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      isAdmin
+                          ? 'Post updates and manage school-wide communication.'
+                          : 'View school updates, react, comment, and share.',
+                      style: TextStyle(
+                        color: AppColors.white.withValues(alpha: 0.85),
+                        fontSize: 13,
+                        height: 1.45,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget emptyState() {
     String message = 'No announcement found yet.';
 
@@ -1123,14 +1258,52 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
 
     return Center(
       child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Text(
-          message,
-          textAlign: TextAlign.center,
-          style: const TextStyle(
-            color: AppColors.textGrey,
-            height: 1.5,
-          ),
+        padding: const EdgeInsets.all(28),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              height: 86,
+              width: 86,
+              decoration: BoxDecoration(
+                color: AppColors.lightBlue,
+                borderRadius: BorderRadius.circular(28),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(18),
+                child: Image.asset(
+                  'assets/icons/announcements.png',
+                  fit: BoxFit.contain,
+                  errorBuilder: (context, error, stackTrace) {
+                    return const Icon(
+                      Icons.campaign_outlined,
+                      color: AppColors.primaryBlue,
+                      size: 42,
+                    );
+                  },
+                ),
+              ),
+            ),
+            const SizedBox(height: 18),
+            Text(
+              isAdmin ? 'No announcements yet' : 'No announcements yet',
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: AppColors.textDark,
+                fontSize: 20,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: AppColors.textGrey,
+                height: 1.5,
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -1193,15 +1366,22 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
                   )
                 : announcements.isEmpty
                     ? emptyState()
-                    : ListView.separated(
-                        padding: const EdgeInsets.fromLTRB(18, 18, 18, 90),
-                        itemCount: announcements.length,
-                        separatorBuilder: (context, index) {
-                          return const SizedBox(height: 12);
-                        },
-                        itemBuilder: (context, index) {
-                          return announcementCard(announcements[index]);
-                        },
+                    : RefreshIndicator(
+                        onRefresh: loadInitialData,
+                        child: ListView.separated(
+                          padding: const EdgeInsets.fromLTRB(18, 18, 18, 90),
+                          itemCount: announcements.length + 1,
+                          separatorBuilder: (context, index) {
+                            return const SizedBox(height: 12);
+                          },
+                          itemBuilder: (context, index) {
+                            if (index == 0) {
+                              return headerCard();
+                            }
+
+                            return announcementCard(announcements[index - 1]);
+                          },
+                        ),
                       ),
       ),
     );
@@ -2003,6 +2183,56 @@ class _AnnouncementDetailScreenState extends State<AnnouncementDetailScreen> {
     return AppColors.primaryBlue;
   }
 
+  IconData categoryIcon(String category) {
+    if (category == 'Academic') return Icons.school_outlined;
+    if (category == 'Fees') return Icons.account_balance_wallet_outlined;
+    if (category == 'Exams') return Icons.edit_note_outlined;
+    if (category == 'Events') return Icons.event_outlined;
+    if (category == 'Urgent') return Icons.warning_amber_outlined;
+
+    return Icons.campaign_outlined;
+  }
+
+  String categoryImagePath(String category) {
+    if (category == 'Academic') return 'assets/icons/results.png';
+    if (category == 'Fees') return 'assets/icons/fees.png';
+    if (category == 'Exams') return 'assets/icons/add_marks.png';
+    if (category == 'Events') return 'assets/icons/timetable.png';
+    if (category == 'Urgent') return 'assets/icons/notifications.png';
+
+    return 'assets/icons/announcements.png';
+  }
+
+  Widget categoryPngIcon({
+    required String category,
+    required String priority,
+  }) {
+    final color = priorityColor(priority);
+
+    return Container(
+      height: 58,
+      width: 58,
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Image.asset(
+          categoryImagePath(category),
+          fit: BoxFit.contain,
+          errorBuilder: (context, error, stackTrace) {
+            return Icon(
+              categoryIcon(category),
+              color: color,
+              size: 30,
+            );
+          },
+        ),
+      ),
+    );
+  }
+
   String formatDate(dynamic value) {
     if (value is Timestamp) {
       final date = value.toDate();
@@ -2048,21 +2278,39 @@ class _AnnouncementDetailScreenState extends State<AnnouncementDetailScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            createdByName,
-            style: const TextStyle(
-              color: AppColors.textDark,
-              fontWeight: FontWeight.bold,
-              fontSize: 15,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            formatDate(createdAt),
-            style: const TextStyle(
-              color: AppColors.textGrey,
-              fontSize: 12,
-            ),
+          Row(
+            children: [
+              categoryPngIcon(
+                category: category,
+                priority: priority,
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      createdByName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: AppColors.textDark,
+                        fontWeight: FontWeight.w900,
+                        fontSize: 15,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      formatDate(createdAt),
+                      style: const TextStyle(
+                        color: AppColors.textGrey,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 16),
           Text(

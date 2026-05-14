@@ -131,44 +131,155 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
     return value.toString();
   }
 
+  Widget headerCard() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: AppColors.cardBlueGradient,
+        borderRadius: BorderRadius.circular(28),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.primaryBlue.withValues(alpha: 0.22),
+            blurRadius: 22,
+            offset: const Offset(0, 12),
+          ),
+        ],
+      ),
+      child: Stack(
+        children: [
+          Positioned(
+            top: -36,
+            right: -28,
+            child: Container(
+              height: 120,
+              width: 120,
+              decoration: BoxDecoration(
+                color: AppColors.white.withValues(alpha: 0.08),
+                shape: BoxShape.circle,
+              ),
+            ),
+          ),
+          Positioned(
+            bottom: -42,
+            left: -34,
+            child: Container(
+              height: 115,
+              width: 115,
+              decoration: BoxDecoration(
+                color: AppColors.white.withValues(alpha: 0.07),
+                shape: BoxShape.circle,
+              ),
+            ),
+          ),
+          Row(
+            children: [
+              Container(
+                height: 66,
+                width: 66,
+                decoration: BoxDecoration(
+                  color: AppColors.white.withValues(alpha: 0.16),
+                  borderRadius: BorderRadius.circular(24),
+                  border: Border.all(
+                    color: AppColors.white.withValues(alpha: 0.22),
+                  ),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(13),
+                  child: Image.asset(
+                    'assets/icons/parent.png',
+                    fit: BoxFit.contain,
+                    errorBuilder: (context, error, stackTrace) {
+                      return const Icon(
+                        Icons.family_restroom_outlined,
+                        color: AppColors.white,
+                        size: 34,
+                      );
+                    },
+                  ),
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Welcome, ${widget.displayName}',
+                      style: const TextStyle(
+                        color: AppColors.white,
+                        fontSize: 24,
+                        fontWeight: FontWeight.w900,
+                        height: 1.15,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      'Follow your child’s timetable, results, fees, attendance, and updates.',
+                      style: TextStyle(
+                        color: AppColors.white.withValues(alpha: 0.85),
+                        fontSize: 13,
+                        height: 1.45,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final modules = [
       {
         'title': 'Child Overview',
         'icon': Icons.child_care_outlined,
+        'imagePath': 'assets/icons/child_overview.png',
       },
       {
         'title': 'Timetable',
         'icon': Icons.calendar_month_outlined,
+        'imagePath': 'assets/icons/timetable.png',
       },
       {
         'title': 'Attendance',
         'icon': Icons.fact_check_outlined,
+        'imagePath': 'assets/icons/attendance.png',
       },
       {
         'title': 'Assignments',
         'icon': Icons.assignment_outlined,
+        'imagePath': 'assets/icons/assignments.png',
       },
       {
         'title': 'Fees',
         'icon': Icons.account_balance_wallet_outlined,
+        'imagePath': 'assets/icons/fees.png',
       },
       {
         'title': 'Results',
         'icon': Icons.bar_chart_outlined,
+        'imagePath': 'assets/icons/results.png',
       },
       {
         'title': 'Announcements',
         'icon': Icons.campaign_outlined,
+        'imagePath': 'assets/icons/announcements.png',
       },
       {
         'title': 'Messaging',
         'icon': Icons.chat_bubble_outline,
+        'imagePath': 'assets/icons/messages.png',
       },
       {
         'title': 'Notifications',
         'icon': Icons.notifications_outlined,
+        'imagePath': 'assets/icons/notifications.png',
+        'badgeText': notificationsCount > 0 ? notificationsCount.toString() : '',
       },
     ];
 
@@ -195,23 +306,10 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                'Welcome, ${widget.displayName}',
-                style: const TextStyle(
-                  fontSize: 26,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.textDark,
-                ),
-              ),
-              const SizedBox(height: 6),
-              const Text(
-                'Follow your child timetable, attendance, assignments, fees, results, announcements, notifications, and messages.',
-                style: TextStyle(
-                  fontSize: 14,
-                  color: AppColors.textGrey,
-                ),
-              ),
+              headerCard(),
+
               const SizedBox(height: 22),
+
               GridView.count(
                 crossAxisCount: 2,
                 shrinkWrap: true,
@@ -224,27 +322,39 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
                     title: 'Children',
                     value: statValue(childrenCount),
                     icon: Icons.child_care_outlined,
+                    imagePath: 'assets/icons/children.png',
                   ),
                   DashboardCard(
                     title: 'Assignments',
                     value: statValue(assignmentsCount),
                     icon: Icons.assignment_outlined,
+                    imagePath: 'assets/icons/assignments.png',
                   ),
                   DashboardCard(
                     title: 'Fees',
                     value: statValue(feesCount),
                     icon: Icons.account_balance_wallet_outlined,
+                    imagePath: 'assets/icons/fees.png',
                   ),
                   DashboardCard(
                     title: 'Unread Notices',
                     value: statValue(notificationsCount),
                     icon: Icons.notifications_outlined,
+                    imagePath: 'assets/icons/notifications.png',
                   ),
                 ],
               ),
+
               const SizedBox(height: 26),
-              const SectionTitle(title: 'Parent Modules'),
+
+              const SectionTitle(
+                title: 'Parent Modules',
+                icon: Icons.dashboard_outlined,
+                imagePath: 'assets/icons/modules.png',
+              ),
+
               const SizedBox(height: 14),
+
               GridView.builder(
                 itemCount: modules.length,
                 shrinkWrap: true,
@@ -253,7 +363,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
                   crossAxisCount: 2,
                   mainAxisSpacing: 14,
                   crossAxisSpacing: 14,
-                  childAspectRatio: 1.1,
+                  childAspectRatio: 1.05,
                 ),
                 itemBuilder: (context, index) {
                   final title = modules[index]['title'] as String;
@@ -261,6 +371,8 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
                   return ModuleCard(
                     title: title,
                     icon: modules[index]['icon'] as IconData,
+                    imagePath: modules[index]['imagePath'] as String,
+                    badgeText: modules[index]['badgeText'] as String?,
                     onTap: () {
                       if (title == 'Announcements') {
                         Navigator.push(
@@ -354,6 +466,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
                   );
                 },
               ),
+
               const SizedBox(height: 20),
             ],
           ),

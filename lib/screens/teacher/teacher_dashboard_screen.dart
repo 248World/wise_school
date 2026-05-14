@@ -109,44 +109,155 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
     return value.toString();
   }
 
+  Widget headerCard() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: AppColors.cardBlueGradient,
+        borderRadius: BorderRadius.circular(28),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.primaryBlue.withValues(alpha: 0.22),
+            blurRadius: 22,
+            offset: const Offset(0, 12),
+          ),
+        ],
+      ),
+      child: Stack(
+        children: [
+          Positioned(
+            top: -36,
+            right: -28,
+            child: Container(
+              height: 120,
+              width: 120,
+              decoration: BoxDecoration(
+                color: AppColors.white.withValues(alpha: 0.08),
+                shape: BoxShape.circle,
+              ),
+            ),
+          ),
+          Positioned(
+            bottom: -42,
+            left: -34,
+            child: Container(
+              height: 115,
+              width: 115,
+              decoration: BoxDecoration(
+                color: AppColors.white.withValues(alpha: 0.07),
+                shape: BoxShape.circle,
+              ),
+            ),
+          ),
+          Row(
+            children: [
+              Container(
+                height: 66,
+                width: 66,
+                decoration: BoxDecoration(
+                  color: AppColors.white.withValues(alpha: 0.16),
+                  borderRadius: BorderRadius.circular(24),
+                  border: Border.all(
+                    color: AppColors.white.withValues(alpha: 0.22),
+                  ),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(13),
+                  child: Image.asset(
+                    'assets/icons/teacher.png',
+                    fit: BoxFit.contain,
+                    errorBuilder: (context, error, stackTrace) {
+                      return const Icon(
+                        Icons.person_4_outlined,
+                        color: AppColors.white,
+                        size: 34,
+                      );
+                    },
+                  ),
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Welcome, ${widget.displayName}',
+                      style: const TextStyle(
+                        color: AppColors.white,
+                        fontSize: 24,
+                        fontWeight: FontWeight.w900,
+                        height: 1.15,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      'Manage classes, marks, attendance, assignments, and communication.',
+                      style: TextStyle(
+                        color: AppColors.white.withValues(alpha: 0.85),
+                        fontSize: 13,
+                        height: 1.45,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final modules = [
       {
         'title': 'My Classes',
         'icon': Icons.groups_2_outlined,
+        'imagePath': 'assets/icons/classes.png',
       },
       {
         'title': 'Timetable',
         'icon': Icons.calendar_month_outlined,
+        'imagePath': 'assets/icons/timetable.png',
       },
       {
         'title': 'Attendance',
         'icon': Icons.fact_check_outlined,
+        'imagePath': 'assets/icons/attendance.png',
       },
       {
         'title': 'Add Marks',
         'icon': Icons.edit_note_outlined,
+        'imagePath': 'assets/icons/add_marks.png',
       },
       {
         'title': 'Assignments',
         'icon': Icons.assignment_outlined,
+        'imagePath': 'assets/icons/assignments.png',
       },
       {
         'title': 'Announcements',
         'icon': Icons.campaign_outlined,
+        'imagePath': 'assets/icons/announcements.png',
       },
       {
         'title': 'Admin Chat',
         'icon': Icons.chat_bubble_outline,
+        'imagePath': 'assets/icons/admin_chat.png',
       },
       {
         'title': 'Notifications',
         'icon': Icons.notifications_outlined,
+        'imagePath': 'assets/icons/notifications.png',
+        'badgeText': notificationsCount > 0 ? notificationsCount.toString() : '',
       },
       {
         'title': 'Profile',
         'icon': Icons.account_circle_outlined,
+        'imagePath': 'assets/icons/profile.png',
       },
     ];
 
@@ -173,23 +284,10 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                'Welcome, ${widget.displayName}',
-                style: const TextStyle(
-                  fontSize: 26,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.textDark,
-                ),
-              ),
-              const SizedBox(height: 6),
-              const Text(
-                'Manage your classes, timetable, attendance, marks, assignments, announcements, notifications, and messages.',
-                style: TextStyle(
-                  fontSize: 14,
-                  color: AppColors.textGrey,
-                ),
-              ),
+              headerCard(),
+
               const SizedBox(height: 22),
+
               GridView.count(
                 crossAxisCount: 2,
                 shrinkWrap: true,
@@ -202,27 +300,39 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                     title: 'My Classes',
                     value: statValue(classesCount),
                     icon: Icons.groups_2_outlined,
+                    imagePath: 'assets/icons/classes.png',
                   ),
                   DashboardCard(
                     title: 'Timetable',
                     value: statValue(timetableCount),
                     icon: Icons.calendar_month_outlined,
+                    imagePath: 'assets/icons/timetable.png',
                   ),
                   DashboardCard(
                     title: 'Assignments',
                     value: statValue(assignmentsCount),
                     icon: Icons.assignment_outlined,
+                    imagePath: 'assets/icons/assignments.png',
                   ),
                   DashboardCard(
                     title: 'Unread Notices',
                     value: statValue(notificationsCount),
                     icon: Icons.notifications_outlined,
+                    imagePath: 'assets/icons/notifications.png',
                   ),
                 ],
               ),
+
               const SizedBox(height: 26),
-              const SectionTitle(title: 'Teacher Modules'),
+
+              const SectionTitle(
+                title: 'Teacher Modules',
+                icon: Icons.dashboard_outlined,
+                imagePath: 'assets/icons/modules.png',
+              ),
+
               const SizedBox(height: 14),
+
               GridView.builder(
                 itemCount: modules.length,
                 shrinkWrap: true,
@@ -231,7 +341,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                   crossAxisCount: 2,
                   mainAxisSpacing: 14,
                   crossAxisSpacing: 14,
-                  childAspectRatio: 1.1,
+                  childAspectRatio: 1.05,
                 ),
                 itemBuilder: (context, index) {
                   final title = modules[index]['title'] as String;
@@ -239,6 +349,8 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                   return ModuleCard(
                     title: title,
                     icon: modules[index]['icon'] as IconData,
+                    imagePath: modules[index]['imagePath'] as String,
+                    badgeText: modules[index]['badgeText'] as String?,
                     onTap: () {
                       if (title == 'Add Marks') {
                         Navigator.push(
@@ -335,6 +447,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                   );
                 },
               ),
+
               const SizedBox(height: 20),
             ],
           ),

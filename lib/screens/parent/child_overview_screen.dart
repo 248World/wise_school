@@ -480,6 +480,177 @@ class _ChildOverviewScreenState extends State<ChildOverviewScreen> {
     return NetworkImage(imageUrl);
   }
 
+  Widget pngIconBox({
+    required String imagePath,
+    required IconData fallbackIcon,
+    Color color = AppColors.primaryBlue,
+    double size = 54,
+    double padding = 11,
+  }) {
+    return Container(
+      height: size,
+      width: size,
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(size * 0.36),
+      ),
+      child: Padding(
+        padding: EdgeInsets.all(padding),
+        child: Image.asset(
+          imagePath,
+          fit: BoxFit.contain,
+          errorBuilder: (context, error, stackTrace) {
+            return Icon(
+              fallbackIcon,
+              color: color,
+              size: size * 0.52,
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  Widget headerCard() {
+    final childName = selectedChild?['fullName'] ?? 'Child';
+    final className = selectedChild?['className'] ?? '';
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [
+            AppColors.primaryBlue,
+            AppColors.darkBlue,
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(28),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.primaryBlue.withValues(alpha: 0.22),
+            blurRadius: 22,
+            offset: const Offset(0, 12),
+          ),
+        ],
+      ),
+      child: Stack(
+        children: [
+          Positioned(
+            top: -36,
+            right: -28,
+            child: Container(
+              height: 120,
+              width: 120,
+              decoration: BoxDecoration(
+                color: AppColors.white.withValues(alpha: 0.08),
+                shape: BoxShape.circle,
+              ),
+            ),
+          ),
+          Positioned(
+            bottom: -42,
+            left: -34,
+            child: Container(
+              height: 115,
+              width: 115,
+              decoration: BoxDecoration(
+                color: AppColors.white.withValues(alpha: 0.07),
+                shape: BoxShape.circle,
+              ),
+            ),
+          ),
+          Row(
+            children: [
+              Container(
+                height: 66,
+                width: 66,
+                decoration: BoxDecoration(
+                  color: AppColors.white.withValues(alpha: 0.16),
+                  borderRadius: BorderRadius.circular(24),
+                  border: Border.all(
+                    color: AppColors.white.withValues(alpha: 0.22),
+                  ),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(13),
+                  child: Image.asset(
+                    'assets/icons/child_overview.png',
+                    fit: BoxFit.contain,
+                    errorBuilder: (context, error, stackTrace) {
+                      return const Icon(
+                        Icons.child_care_outlined,
+                        color: AppColors.white,
+                        size: 34,
+                      );
+                    },
+                  ),
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      childName.toString().isEmpty ? 'Child Overview' : childName,
+                      style: const TextStyle(
+                        color: AppColors.white,
+                        fontSize: 24,
+                        fontWeight: FontWeight.w900,
+                        height: 1.15,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      className.toString().isEmpty
+                          ? 'Follow your child’s attendance, results, assignments, timetable, and fees.'
+                          : 'Class: $className • Follow attendance, results, assignments, timetable, and fees.',
+                      style: TextStyle(
+                        color: AppColors.white.withValues(alpha: 0.85),
+                        fontSize: 13,
+                        height: 1.45,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget smallStatusChip({
+    required String text,
+    required Color color,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Text(
+        text,
+        style: TextStyle(
+          color: color,
+          fontWeight: FontWeight.w800,
+          fontSize: 12,
+        ),
+      ),
+    );
+  }
+
+  Color performanceColor(double value) {
+    if (value >= 80 || value >= 14) return AppColors.softGreen;
+    if (value >= 50 || value >= 10) return Colors.orange;
+    return AppColors.danger;
+  }
+
   Widget childSelector() {
     if (children.length <= 1) {
       return const SizedBox();
@@ -490,8 +661,15 @@ class _ChildOverviewScreenState extends State<ChildOverviewScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 14),
       decoration: BoxDecoration(
         color: AppColors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(18),
         border: Border.all(color: AppColors.border),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.035),
+            blurRadius: 14,
+            offset: const Offset(0, 8),
+          ),
+        ],
       ),
       child: DropdownButtonHideUnderline(
         child: DropdownButton<String>(
@@ -501,7 +679,22 @@ class _ChildOverviewScreenState extends State<ChildOverviewScreen> {
           items: children.map((child) {
             return DropdownMenuItem<String>(
               value: child['id'],
-              child: Text(child['fullName'] ?? 'Student'),
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.child_care_outlined,
+                    color: AppColors.primaryBlue,
+                    size: 20,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      child['fullName'] ?? 'Student',
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
             );
           }).toList(),
           onChanged: (value) {
@@ -535,68 +728,94 @@ class _ChildOverviewScreenState extends State<ChildOverviewScreen> {
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         color: AppColors.white,
-        borderRadius: BorderRadius.circular(22),
+        borderRadius: BorderRadius.circular(24),
         border: Border.all(color: AppColors.border),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 10,
-            offset: const Offset(0, 5),
+            color: Colors.black.withValues(alpha: 0.045),
+            blurRadius: 18,
+            offset: const Offset(0, 10),
           ),
         ],
       ),
-      child: Column(
+      child: Stack(
         children: [
-          CircleAvatar(
-            radius: 46,
-            backgroundColor: AppColors.primaryBlue,
-            backgroundImage: imageProvider,
-            child: imageProvider == null
-                ? const Icon(
-                    Icons.child_care_outlined,
-                    color: AppColors.white,
-                    size: 46,
-                  )
-                : null,
-          ),
-          const SizedBox(height: 14),
-          Text(
-            child['fullName'] ?? 'Student',
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-              fontSize: 23,
-              fontWeight: FontWeight.bold,
-              color: AppColors.textDark,
-            ),
-          ),
-          const SizedBox(height: 5),
-          Text(
-            child['className'].toString().isEmpty
-                ? 'No class assigned'
-                : child['className'],
-            style: const TextStyle(
-              color: AppColors.primaryBlue,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          if (child['email'].toString().isNotEmpty) ...[
-            const SizedBox(height: 5),
-            Text(
-              child['email'],
-              style: const TextStyle(
-                color: AppColors.textGrey,
+          Positioned(
+            top: -26,
+            right: -24,
+            child: Container(
+              height: 82,
+              width: 82,
+              decoration: BoxDecoration(
+                color: AppColors.primaryBlue.withValues(alpha: 0.045),
+                shape: BoxShape.circle,
               ),
             ),
-          ],
-          if (child['phone'].toString().isNotEmpty) ...[
-            const SizedBox(height: 5),
-            Text(
-              child['phone'],
-              style: const TextStyle(
-                color: AppColors.textGrey,
+          ),
+          Column(
+            children: [
+              CircleAvatar(
+                radius: 48,
+                backgroundColor: AppColors.primaryBlue.withValues(alpha: 0.14),
+                backgroundImage: imageProvider,
+                child: imageProvider == null
+                    ? Padding(
+                        padding: const EdgeInsets.all(14),
+                        child: Image.asset(
+                          'assets/icons/student.png',
+                          fit: BoxFit.contain,
+                          errorBuilder: (context, error, stackTrace) {
+                            return const Icon(
+                              Icons.child_care_outlined,
+                              color: AppColors.primaryBlue,
+                              size: 46,
+                            );
+                          },
+                        ),
+                      )
+                    : null,
               ),
-            ),
-          ],
+              const SizedBox(height: 14),
+              Text(
+                child['fullName'] ?? 'Student',
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 23,
+                  fontWeight: FontWeight.w900,
+                  color: AppColors.textDark,
+                  height: 1.2,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Wrap(
+                alignment: WrapAlignment.center,
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  smallStatusChip(
+                    text: child['className'].toString().isEmpty
+                        ? 'No class assigned'
+                        : child['className'],
+                    color: AppColors.primaryBlue,
+                  ),
+                  if (child['email'].toString().isNotEmpty)
+                    smallStatusChip(
+                      text: child['email'],
+                      color: AppColors.textGrey,
+                    ),
+                ],
+              ),
+              if (child['phone'].toString().isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Text(
+                  child['phone'],
+                  style: const TextStyle(
+                    color: AppColors.textGrey,
+                  ),
+                ),
+              ],
+            ],
+          ),
         ],
       ),
     );
@@ -606,57 +825,82 @@ class _ChildOverviewScreenState extends State<ChildOverviewScreen> {
     required String title,
     required String value,
     required IconData icon,
+    required String imagePath,
     required String subtitle,
+    Color color = AppColors.primaryBlue,
   }) {
     return Container(
       padding: const EdgeInsets.all(15),
       decoration: BoxDecoration(
         color: AppColors.white,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(24),
         border: Border.all(color: AppColors.border),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 10,
-            offset: const Offset(0, 5),
+            color: Colors.black.withValues(alpha: 0.045),
+            blurRadius: 18,
+            offset: const Offset(0, 10),
           ),
         ],
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Stack(
         children: [
-          Icon(
-            icon,
-            color: AppColors.primaryBlue,
-            size: 28,
-          ),
-          const Spacer(),
-          Text(
-            value,
-            style: const TextStyle(
-              color: AppColors.textDark,
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
+          Positioned(
+            top: -28,
+            right: -26,
+            child: Container(
+              height: 78,
+              width: 78,
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.045),
+                shape: BoxShape.circle,
+              ),
             ),
           ),
-          const SizedBox(height: 4),
-          Text(
-            title,
-            style: const TextStyle(
-              color: AppColors.textDark,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const SizedBox(height: 3),
-          Text(
-            subtitle,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              color: AppColors.textGrey,
-              fontSize: 12,
-              height: 1.3,
-            ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              pngIconBox(
+                imagePath: imagePath,
+                fallbackIcon: icon,
+                color: color,
+                size: 48,
+                padding: 10,
+              ),
+              const Spacer(),
+              Text(
+                value,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: AppColors.textDark,
+                  fontSize: 24,
+                  fontWeight: FontWeight.w900,
+                  height: 1.1,
+                ),
+              ),
+              const SizedBox(height: 5),
+              Text(
+                title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: AppColors.textDark,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                subtitle,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: AppColors.textGrey,
+                  fontSize: 12,
+                  height: 1.3,
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -676,36 +920,47 @@ class _ChildOverviewScreenState extends State<ChildOverviewScreen> {
           title: 'Attendance',
           value: attendancePercentage(),
           icon: Icons.fact_check_outlined,
+          imagePath: 'assets/icons/attendance.png',
+          color: performanceColor(attendanceTotal == 0 ? 0 : (attendancePresent / attendanceTotal) * 100),
           subtitle: '$attendancePresent present / $attendanceTotal total',
         ),
         statCard(
           title: 'Average Result',
           value: marksTotal == 0 ? '0' : averageMark.toStringAsFixed(2),
           icon: Icons.bar_chart_outlined,
+          imagePath: 'assets/icons/results.png',
+          color: performanceColor(averageMark),
           subtitle: '$marksTotal mark record(s)',
         ),
         statCard(
           title: 'Assignments',
           value: assignmentProgress(),
           icon: Icons.assignment_outlined,
+          imagePath: 'assets/icons/assignments.png',
+          color: performanceColor(assignmentsTotal == 0 ? 0 : (assignmentsSubmitted / assignmentsTotal) * 100),
           subtitle: '$assignmentsSubmitted submitted / $assignmentsTotal total',
         ),
         statCard(
           title: 'Fees',
           value: feesUnpaid.toString(),
           icon: Icons.account_balance_wallet_outlined,
+          imagePath: 'assets/icons/fees.png',
+          color: feesUnpaid == 0 ? AppColors.softGreen : AppColors.danger,
           subtitle: 'Unpaid: ${formatDouble(unpaidFeesAmount)}',
         ),
         statCard(
           title: 'Timetable',
           value: timetableTotal.toString(),
           icon: Icons.calendar_month_outlined,
+          imagePath: 'assets/icons/timetable.png',
           subtitle: 'Class timetable records',
         ),
         statCard(
           title: 'Absences',
           value: attendanceAbsent.toString(),
           icon: Icons.warning_amber_outlined,
+          imagePath: 'assets/icons/attendance.png',
+          color: attendanceAbsent == 0 ? AppColors.softGreen : AppColors.danger,
           subtitle: 'Recorded absences',
         ),
       ],
@@ -717,43 +972,66 @@ class _ChildOverviewScreenState extends State<ChildOverviewScreen> {
       width: double.infinity,
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: AppColors.primaryBlue.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(
-          color: AppColors.primaryBlue.withValues(alpha: 0.18),
-        ),
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: AppColors.border),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.045),
+            blurRadius: 18,
+            offset: const Offset(0, 10),
+          ),
+        ],
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Stack(
         children: [
-          const Row(
-            children: [
-              Icon(
-                Icons.psychology_outlined,
-                color: AppColors.primaryBlue,
+          Positioned(
+            top: -26,
+            right: -24,
+            child: Container(
+              height: 82,
+              width: 82,
+              decoration: BoxDecoration(
+                color: AppColors.primaryBlue.withValues(alpha: 0.045),
+                shape: BoxShape.circle,
               ),
-              SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  'AI Progress Summary',
-                  style: TextStyle(
-                    color: AppColors.textDark,
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
+            ),
+          ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  pngIconBox(
+                    imagePath: 'assets/icons/ai_assistant.png',
+                    fallbackIcon: Icons.psychology_outlined,
+                    size: 46,
+                    padding: 10,
                   ),
+                  const SizedBox(width: 12),
+                  const Expanded(
+                    child: Text(
+                      'Smart Progress Summary',
+                      style: TextStyle(
+                        color: AppColors.textDark,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Text(
+                aiSummary.isEmpty
+                    ? 'Not enough data available yet to generate a useful progress summary.'
+                    : aiSummary,
+                style: const TextStyle(
+                  color: AppColors.textGrey,
+                  height: 1.5,
                 ),
               ),
             ],
-          ),
-          const SizedBox(height: 12),
-          Text(
-            aiSummary.isEmpty
-                ? 'No enough data available yet to generate a useful progress summary.'
-                : aiSummary,
-            style: const TextStyle(
-              color: AppColors.textGrey,
-              height: 1.5,
-            ),
           ),
         ],
       ),
@@ -772,19 +1050,39 @@ class _ChildOverviewScreenState extends State<ChildOverviewScreen> {
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         color: AppColors.white,
-        borderRadius: BorderRadius.circular(22),
+        borderRadius: BorderRadius.circular(24),
         border: Border.all(color: AppColors.border),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.035),
+            blurRadius: 14,
+            offset: const Offset(0, 8),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Child Details',
-            style: TextStyle(
-              color: AppColors.textDark,
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-            ),
+          Row(
+            children: [
+              pngIconBox(
+                imagePath: 'assets/icons/profile.png',
+                fallbackIcon: Icons.account_circle_outlined,
+                size: 42,
+                padding: 9,
+              ),
+              const SizedBox(width: 12),
+              const Expanded(
+                child: Text(
+                  'Child Details',
+                  style: TextStyle(
+                    color: AppColors.textDark,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 14),
           detailRow(
@@ -873,14 +1171,36 @@ class _ChildOverviewScreenState extends State<ChildOverviewScreen> {
   Widget emptyState() {
     return Center(
       child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Text(
-          'No child is assigned to your parent account yet. Please contact the school admin.',
-          textAlign: TextAlign.center,
-          style: const TextStyle(
-            color: AppColors.textGrey,
-            height: 1.5,
-          ),
+        padding: const EdgeInsets.all(28),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            pngIconBox(
+              imagePath: 'assets/icons/child_overview.png',
+              fallbackIcon: Icons.child_care_outlined,
+              size: 88,
+              padding: 18,
+            ),
+            const SizedBox(height: 18),
+            const Text(
+              'No child assigned yet',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: AppColors.textDark,
+                fontSize: 20,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'No child is assigned to your parent account yet. Please contact the school admin.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: AppColors.textGrey,
+                height: 1.5,
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -947,22 +1267,28 @@ class _ChildOverviewScreenState extends State<ChildOverviewScreen> {
                 ? errorState()
                 : children.isEmpty
                     ? emptyState()
-                    : SingleChildScrollView(
-                        padding: const EdgeInsets.all(18),
-                        child: Column(
-                          children: [
-                            childSelector(),
-                            if (children.length > 1)
-                              const SizedBox(height: 16),
-                            childProfileCard(),
-                            const SizedBox(height: 18),
-                            statsGrid(),
-                            const SizedBox(height: 18),
-                            aiSummaryCard(),
-                            const SizedBox(height: 18),
-                            detailsCard(),
-                            const SizedBox(height: 20),
-                          ],
+                    : RefreshIndicator(
+                        onRefresh: refreshData,
+                        child: SingleChildScrollView(
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          padding: const EdgeInsets.all(18),
+                          child: Column(
+                            children: [
+                              headerCard(),
+                              const SizedBox(height: 18),
+                              childSelector(),
+                              if (children.length > 1)
+                                const SizedBox(height: 16),
+                              childProfileCard(),
+                              const SizedBox(height: 18),
+                              statsGrid(),
+                              const SizedBox(height: 18),
+                              aiSummaryCard(),
+                              const SizedBox(height: 18),
+                              detailsCard(),
+                              const SizedBox(height: 20),
+                            ],
+                          ),
                         ),
                       ),
       ),

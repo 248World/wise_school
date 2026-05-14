@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../../core/constants/app_colors.dart';
 import '../../services/database_service.dart';
 
@@ -56,6 +57,8 @@ class _SubjectManagementScreenState extends State<SubjectManagementScreen> {
         return user['role'] == 'Teacher' && user['isActive'] == true;
       }).toList();
 
+      if (!mounted) return;
+
       setState(() {
         subjects = loadedSubjects;
         classes = loadedClasses;
@@ -63,6 +66,8 @@ class _SubjectManagementScreenState extends State<SubjectManagementScreen> {
         isLoading = false;
       });
     } catch (error) {
+      if (!mounted) return;
+
       setState(() {
         errorMessage = error.toString().replaceAll('Exception: ', '');
         isLoading = false;
@@ -76,29 +81,17 @@ class _SubjectManagementScreenState extends State<SubjectManagementScreen> {
     final coefficient = int.tryParse(coefficientText) ?? 1;
 
     if (subjectName.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please enter subject name'),
-        ),
-      );
+      showSnackBar('Please enter subject name');
       return;
     }
 
     if (selectedClassId.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please select a class'),
-        ),
-      );
+      showSnackBar('Please select a class');
       return;
     }
 
     if (selectedTeacherId.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please select a teacher'),
-        ),
-      );
+      showSnackBar('Please select a teacher');
       return;
     }
 
@@ -118,6 +111,7 @@ class _SubjectManagementScreenState extends State<SubjectManagementScreen> {
 
       subjectNameController.clear();
       coefficientController.text = '1';
+
       selectedClassId = '';
       selectedClassName = '';
       selectedTeacherId = '';
@@ -127,21 +121,11 @@ class _SubjectManagementScreenState extends State<SubjectManagementScreen> {
 
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Subject added successfully'),
-        ),
-      );
+      showSnackBar('Subject added successfully');
     } catch (error) {
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            error.toString().replaceAll('Exception: ', ''),
-          ),
-        ),
-      );
+      showSnackBar(error.toString().replaceAll('Exception: ', ''));
     }
   }
 
@@ -153,21 +137,11 @@ class _SubjectManagementScreenState extends State<SubjectManagementScreen> {
 
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Subject deleted successfully'),
-        ),
-      );
+      showSnackBar('Subject deleted successfully');
     } catch (error) {
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            error.toString().replaceAll('Exception: ', ''),
-          ),
-        ),
-      );
+      showSnackBar(error.toString().replaceAll('Exception: ', ''));
     }
   }
 
@@ -204,9 +178,214 @@ class _SubjectManagementScreenState extends State<SubjectManagementScreen> {
     }
   }
 
+  Widget pngIconBox({
+    required String imagePath,
+    required IconData fallbackIcon,
+    Color color = AppColors.primaryBlue,
+    double size = 54,
+    double padding = 11,
+  }) {
+    return Container(
+      height: size,
+      width: size,
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(size * 0.36),
+      ),
+      child: Padding(
+        padding: EdgeInsets.all(padding),
+        child: Image.asset(
+          imagePath,
+          fit: BoxFit.contain,
+          errorBuilder: (context, error, stackTrace) {
+            return Icon(
+              fallbackIcon,
+              color: color,
+              size: size * 0.52,
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  Widget sheetHandle() {
+    return Center(
+      child: Container(
+        height: 5,
+        width: 44,
+        decoration: BoxDecoration(
+          color: AppColors.border,
+          borderRadius: BorderRadius.circular(20),
+        ),
+      ),
+    );
+  }
+
+  Widget headerCard() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [
+            AppColors.primaryBlue,
+            AppColors.darkBlue,
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(28),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.primaryBlue.withValues(alpha: 0.22),
+            blurRadius: 22,
+            offset: const Offset(0, 12),
+          ),
+        ],
+      ),
+      child: Stack(
+        children: [
+          Positioned(
+            top: -36,
+            right: -28,
+            child: Container(
+              height: 120,
+              width: 120,
+              decoration: BoxDecoration(
+                color: AppColors.white.withValues(alpha: 0.08),
+                shape: BoxShape.circle,
+              ),
+            ),
+          ),
+          Positioned(
+            bottom: -42,
+            left: -34,
+            child: Container(
+              height: 115,
+              width: 115,
+              decoration: BoxDecoration(
+                color: AppColors.white.withValues(alpha: 0.07),
+                shape: BoxShape.circle,
+              ),
+            ),
+          ),
+          Row(
+            children: [
+              Container(
+                height: 66,
+                width: 66,
+                decoration: BoxDecoration(
+                  color: AppColors.white.withValues(alpha: 0.16),
+                  borderRadius: BorderRadius.circular(24),
+                  border: Border.all(
+                    color: AppColors.white.withValues(alpha: 0.22),
+                  ),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(13),
+                  child: Image.asset(
+                    'assets/icons/subjects.png',
+                    fit: BoxFit.contain,
+                    errorBuilder: (context, error, stackTrace) {
+                      return const Icon(
+                        Icons.menu_book_outlined,
+                        color: AppColors.white,
+                        size: 34,
+                      );
+                    },
+                  ),
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Subject Management',
+                      style: TextStyle(
+                        color: AppColors.white,
+                        fontSize: 24,
+                        fontWeight: FontWeight.w900,
+                        height: 1.15,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      '${subjects.length} subject(s) • ${classes.length} class(es) • ${teachers.length} teacher(s).',
+                      style: TextStyle(
+                        color: AppColors.white.withValues(alpha: 0.85),
+                        fontSize: 13,
+                        height: 1.45,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget smallStatusChip({
+    required String text,
+    required Color color,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: 10,
+        vertical: 7,
+      ),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Text(
+        text,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(
+          color: color,
+          fontWeight: FontWeight.w800,
+          fontSize: 12,
+        ),
+      ),
+    );
+  }
+
+  Widget detailLine({
+    required IconData icon,
+    required String text,
+  }) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(
+          icon,
+          color: AppColors.textGrey,
+          size: 16,
+        ),
+        const SizedBox(width: 6),
+        Expanded(
+          child: Text(
+            text,
+            style: const TextStyle(
+              color: AppColors.textGrey,
+              height: 1.35,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
   void showAddSubjectSheet() {
     subjectNameController.clear();
     coefficientController.text = '1';
+
     selectedClassId = '';
     selectedClassName = '';
     selectedTeacherId = '';
@@ -218,7 +397,7 @@ class _SubjectManagementScreenState extends State<SubjectManagementScreen> {
       backgroundColor: AppColors.white,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(
-          top: Radius.circular(24),
+          top: Radius.circular(28),
         ),
       ),
       builder: (_) {
@@ -228,7 +407,7 @@ class _SubjectManagementScreenState extends State<SubjectManagementScreen> {
               padding: EdgeInsets.only(
                 left: 24,
                 right: 24,
-                top: 24,
+                top: 18,
                 bottom: MediaQuery.of(context).viewInsets.bottom + 24,
               ),
               child: SingleChildScrollView(
@@ -236,16 +415,30 @@ class _SubjectManagementScreenState extends State<SubjectManagementScreen> {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
-                      'Add New Subject',
-                      style: TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.textDark,
-                      ),
+                    sheetHandle(),
+                    const SizedBox(height: 18),
+                    Row(
+                      children: [
+                        pngIconBox(
+                          imagePath: 'assets/icons/subjects.png',
+                          fallbackIcon: Icons.menu_book_outlined,
+                          size: 48,
+                          padding: 10,
+                        ),
+                        const SizedBox(width: 12),
+                        const Expanded(
+                          child: Text(
+                            'Add New Subject',
+                            style: TextStyle(
+                              fontSize: 22,
+                              fontWeight: FontWeight.w900,
+                              color: AppColors.textDark,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 18),
-
                     TextField(
                       controller: subjectNameController,
                       decoration: const InputDecoration(
@@ -254,9 +447,7 @@ class _SubjectManagementScreenState extends State<SubjectManagementScreen> {
                         prefixIcon: Icon(Icons.menu_book_outlined),
                       ),
                     ),
-
                     const SizedBox(height: 14),
-
                     DropdownButtonFormField<String>(
                       initialValue:
                           selectedClassId.isEmpty ? null : selectedClassId,
@@ -285,7 +476,6 @@ class _SubjectManagementScreenState extends State<SubjectManagementScreen> {
                         });
                       },
                     ),
-
                     if (classes.isEmpty) ...[
                       const SizedBox(height: 10),
                       const Text(
@@ -296,9 +486,7 @@ class _SubjectManagementScreenState extends State<SubjectManagementScreen> {
                         ),
                       ),
                     ],
-
                     const SizedBox(height: 14),
-
                     DropdownButtonFormField<String>(
                       initialValue:
                           selectedTeacherId.isEmpty ? null : selectedTeacherId,
@@ -327,7 +515,6 @@ class _SubjectManagementScreenState extends State<SubjectManagementScreen> {
                         });
                       },
                     ),
-
                     if (teachers.isEmpty) ...[
                       const SizedBox(height: 10),
                       const Text(
@@ -338,9 +525,7 @@ class _SubjectManagementScreenState extends State<SubjectManagementScreen> {
                         ),
                       ),
                     ],
-
                     const SizedBox(height: 14),
-
                     TextField(
                       controller: coefficientController,
                       keyboardType: TextInputType.number,
@@ -350,9 +535,7 @@ class _SubjectManagementScreenState extends State<SubjectManagementScreen> {
                         prefixIcon: Icon(Icons.numbers_outlined),
                       ),
                     ),
-
                     const SizedBox(height: 24),
-
                     SizedBox(
                       width: double.infinity,
                       height: 52,
@@ -373,17 +556,173 @@ class _SubjectManagementScreenState extends State<SubjectManagementScreen> {
   }
 
   Widget emptyState() {
-    return const Center(
+    return Center(
       child: Padding(
-        padding: EdgeInsets.all(24),
+        padding: const EdgeInsets.all(28),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            pngIconBox(
+              imagePath: 'assets/icons/subjects.png',
+              fallbackIcon: Icons.menu_book_outlined,
+              size: 88,
+              padding: 18,
+            ),
+            const SizedBox(height: 18),
+            const Text(
+              'No subjects found',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: AppColors.textDark,
+                fontSize: 20,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'No subjects found yet. Tap Add Subject to create your first subject.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: AppColors.textGrey,
+                height: 1.5,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget subjectCard(Map<String, dynamic> item) {
+    final subjectId = item['id'] ?? '';
+    final subjectName = item['subjectName'] ?? 'Unnamed Subject';
+    final className = item['className'] ?? 'No Class';
+    final teacherName = item['teacherName'] ?? 'No Teacher';
+    final coefficient = item['coefficient'] ?? 1;
+
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(24),
+      child: Ink(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: AppColors.white,
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: AppColors.border),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.045),
+              blurRadius: 18,
+              offset: const Offset(0, 10),
+            ),
+          ],
+        ),
+        child: Stack(
+          children: [
+            Positioned(
+              top: -26,
+              right: -24,
+              child: Container(
+                height: 82,
+                width: 82,
+                decoration: BoxDecoration(
+                  color: AppColors.primaryBlue.withValues(alpha: 0.045),
+                  shape: BoxShape.circle,
+                ),
+              ),
+            ),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                pngIconBox(
+                  imagePath: 'assets/icons/subjects.png',
+                  fallbackIcon: Icons.menu_book_outlined,
+                  size: 56,
+                  padding: 11,
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        subjectName,
+                        style: const TextStyle(
+                          fontSize: 17,
+                          fontWeight: FontWeight.w900,
+                          color: AppColors.textDark,
+                          height: 1.25,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          smallStatusChip(
+                            text: 'Coeff: $coefficient',
+                            color: AppColors.softGreen,
+                          ),
+                          smallStatusChip(
+                            text: className.toString().isEmpty
+                                ? 'No class'
+                                : className.toString(),
+                            color: AppColors.primaryBlue,
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      detailLine(
+                        icon: Icons.person_outline,
+                        text: teacherName.toString().isEmpty
+                            ? 'Teacher: Not assigned'
+                            : 'Teacher: $teacherName',
+                      ),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  onPressed: () {
+                    confirmDelete(
+                      subjectId,
+                      subjectName,
+                    );
+                  },
+                  icon: const Icon(
+                    Icons.delete_outline,
+                    color: AppColors.danger,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget errorState() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
         child: Text(
-          'No subjects found yet. Tap Add Subject to create your first subject.',
+          errorMessage ?? 'Something went wrong',
           textAlign: TextAlign.center,
-          style: TextStyle(
-            color: AppColors.textGrey,
-            height: 1.5,
+          style: const TextStyle(
+            color: AppColors.danger,
+            fontWeight: FontWeight.w600,
           ),
         ),
+      ),
+    );
+  }
+
+  void showSnackBar(String message) {
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
       ),
     );
   }
@@ -414,143 +753,28 @@ class _SubjectManagementScreenState extends State<SubjectManagementScreen> {
                 child: CircularProgressIndicator(),
               )
             : errorMessage != null
-                ? Center(
-                    child: Padding(
-                      padding: const EdgeInsets.all(24),
-                      child: Text(
-                        errorMessage!,
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          color: AppColors.danger,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  )
+                ? errorState()
                 : subjects.isEmpty
                     ? emptyState()
-                    : ListView.separated(
-                        padding: const EdgeInsets.fromLTRB(18, 18, 18, 90),
-                        itemCount: subjects.length,
-                        separatorBuilder: (context, index) {
-                          return const SizedBox(height: 12);
-                        },
-                        itemBuilder: (context, index) {
-                          final item = subjects[index];
+                    : RefreshIndicator(
+                        onRefresh: loadData,
+                        child: ListView.separated(
+                          padding: const EdgeInsets.fromLTRB(18, 18, 18, 90),
+                          itemCount: subjects.length + 1,
+                          separatorBuilder: (context, index) {
+                            return const SizedBox(height: 12);
+                          },
+                          itemBuilder: (context, index) {
+                            if (index == 0) {
+                              return Padding(
+                                padding: const EdgeInsets.only(bottom: 12),
+                                child: headerCard(),
+                              );
+                            }
 
-                          final subjectId = item['id'] ?? '';
-                          final subjectName =
-                              item['subjectName'] ?? 'Unnamed Subject';
-                          final className = item['className'] ?? 'No Class';
-                          final teacherName =
-                              item['teacherName'] ?? 'No Teacher';
-                          final coefficient = item['coefficient'] ?? 1;
-
-                          return Container(
-                            padding: const EdgeInsets.all(16),
-                            decoration: BoxDecoration(
-                              color: AppColors.white,
-                              borderRadius: BorderRadius.circular(18),
-                              border: Border.all(color: AppColors.border),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withValues(alpha: 0.04),
-                                  blurRadius: 10,
-                                  offset: const Offset(0, 5),
-                                ),
-                              ],
-                            ),
-                            child: Row(
-                              children: [
-                                Container(
-                                  height: 52,
-                                  width: 52,
-                                  decoration: BoxDecoration(
-                                    color: AppColors.primaryBlue.withValues(
-                                      alpha: 0.12,
-                                    ),
-                                    borderRadius: BorderRadius.circular(16),
-                                  ),
-                                  child: const Icon(
-                                    Icons.menu_book_outlined,
-                                    color: AppColors.primaryBlue,
-                                  ),
-                                ),
-
-                                const SizedBox(width: 14),
-
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        subjectName,
-                                        style: const TextStyle(
-                                          fontSize: 17,
-                                          fontWeight: FontWeight.bold,
-                                          color: AppColors.textDark,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 5),
-                                      Text(
-                                        className,
-                                        style: const TextStyle(
-                                          color: AppColors.textGrey,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 5),
-                                      Text(
-                                        'Teacher: $teacherName',
-                                        style: const TextStyle(
-                                          color: AppColors.textGrey,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-
-                                Column(
-                                  crossAxisAlignment: CrossAxisAlignment.end,
-                                  children: [
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 10,
-                                        vertical: 7,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: AppColors.softGreen.withValues(
-                                          alpha: 0.14,
-                                        ),
-                                        borderRadius: BorderRadius.circular(20),
-                                      ),
-                                      child: Text(
-                                        'Coeff: $coefficient',
-                                        style: const TextStyle(
-                                          color: AppColors.softGreen,
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 12,
-                                        ),
-                                      ),
-                                    ),
-                                    IconButton(
-                                      onPressed: () {
-                                        confirmDelete(
-                                          subjectId,
-                                          subjectName,
-                                        );
-                                      },
-                                      icon: const Icon(
-                                        Icons.delete_outline,
-                                        color: AppColors.danger,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ],
-                            ),
-                          );
-                        },
+                            return subjectCard(subjects[index - 1]);
+                          },
+                        ),
                       ),
       ),
     );

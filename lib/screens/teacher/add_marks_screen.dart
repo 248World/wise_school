@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 import '../../core/constants/app_colors.dart';
+import '../../providers/auth_provider.dart';
 import '../../services/database_service.dart';
 
 class AddMarksScreen extends StatefulWidget {
@@ -23,12 +25,17 @@ class _AddMarksScreenState extends State<AddMarksScreen> {
   List<Map<String, dynamic>> subjects = [];
   List<Map<String, dynamic>> students = [];
 
+  String currentUserId = '';
+  String currentUserName = '';
+  String currentRole = 'Teacher';
+
   String selectedClassId = '';
   String selectedClassName = '';
   String selectedSubjectId = '';
   String selectedSubjectName = '';
   String selectedTeacherId = '';
   String selectedTeacherName = '';
+  double selectedCoefficient = 1;
 
   final Map<String, TextEditingController> markControllers = {};
   final Map<String, TextEditingController> commentControllers = {};
@@ -36,20 +43,26 @@ class _AddMarksScreenState extends State<AddMarksScreen> {
   @override
   void initState() {
     super.initState();
-    loadClasses();
+
+    Future.microtask(() {
+      loadInitialData();
+    });
   }
 
   @override
   void dispose() {
-    for (final controller in markControllers.values) {
-      controller.dispose();
-    }
-
-    for (final controller in commentControllers.values) {
-      controller.dispose();
-    }
-
+    clearControllers();
     super.dispose();
+  }
+
+  Future<void> loadInitialData() async {
+    final authProvider = context.read<AuthProvider>();
+
+    currentUserId = authProvider.userId ?? '';
+    currentUserName = authProvider.fullName ?? 'Teacher';
+    currentRole = authProvider.role ?? 'Teacher';
+
+    await loadClasses();
   }
 
   Future<void> loadClasses() async {
@@ -88,6 +101,7 @@ class _AddMarksScreenState extends State<AddMarksScreen> {
         selectedSubjectName = '';
         selectedTeacherId = '';
         selectedTeacherName = '';
+        selectedCoefficient = 1;
         clearControllers();
       });
 
@@ -102,8 +116,10 @@ class _AddMarksScreenState extends State<AddMarksScreen> {
       for (final student in loadedStudents) {
         final studentId = student['id'] ?? '';
 
-        markControllers[studentId] = TextEditingController();
-        commentControllers[studentId] = TextEditingController();
+        if (studentId.toString().isNotEmpty) {
+          markControllers[studentId] = TextEditingController();
+          commentControllers[studentId] = TextEditingController();
+        }
       }
 
       if (!mounted) return;
@@ -138,6 +154,19 @@ class _AddMarksScreenState extends State<AddMarksScreen> {
     commentControllers.clear();
   }
 
+  double parseCoefficient(dynamic value) {
+    if (value is int) return value.toDouble();
+    if (value is double) return value;
+
+    final parsed = double.tryParse(value.toString());
+
+    if (parsed == null || parsed <= 0) {
+      return 1;
+    }
+
+    return parsed;
+  }
+
   void selectClass(String? value) {
     if (value == null) return;
 
@@ -165,8 +194,20 @@ class _AddMarksScreenState extends State<AddMarksScreen> {
     setState(() {
       selectedSubjectId = value;
       selectedSubjectName = selectedSubject['subjectName'] ?? '';
-      selectedTeacherId = selectedSubject['teacherId'] ?? '';
-      selectedTeacherName = selectedSubject['teacherName'] ?? '';
+
+      selectedTeacherId = selectedSubject['teacherId'] ?? currentUserId;
+      selectedTeacherName = selectedSubject['teacherName'] ?? currentUserName;
+      selectedCoefficient = parseCoefficient(
+        selectedSubject['coefficient'] ?? selectedSubject['coeff'] ?? 1,
+      );
+
+      if (selectedTeacherId.toString().isEmpty) {
+        selectedTeacherId = currentUserId;
+      }
+
+      if (selectedTeacherName.toString().isEmpty) {
+        selectedTeacherName = currentUserName;
+      }
     });
   }
 
@@ -177,31 +218,26 @@ class _AddMarksScreenState extends State<AddMarksScreen> {
     return 'Weak';
   }
 
+  String progressFromMark(double mark) {
+    if (mark >= 16) return 'Excellent';
+    if (mark >= 14) return 'Good';
+    if (mark >= 10) return 'Average';
+    return 'Needs Support';
+  }
+
   Future<void> saveMarks() async {
     if (selectedClassId.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please select a class'),
-        ),
-      );
+      showSnackBar('Please select a class');
       return;
     }
 
     if (selectedSubjectId.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please select a subject'),
-        ),
-      );
+      showSnackBar('Please select a subject');
       return;
     }
 
     if (students.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('No students found for this class'),
-        ),
-      );
+      showSnackBar('No students found for this class');
       return;
     }
 
@@ -219,12 +255,8 @@ class _AddMarksScreenState extends State<AddMarksScreen> {
       final mark = double.tryParse(markText);
 
       if (mark == null || mark < 0 || mark > 20) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Invalid mark for ${student['fullName']}. Use a value between 0 and 20.',
-            ),
-          ),
+        showSnackBar(
+          'Invalid mark for ${student['fullName']}. Use a value between 0 and 20.',
         );
         return;
       }
@@ -234,16 +266,14 @@ class _AddMarksScreenState extends State<AddMarksScreen> {
         'studentName': student['fullName'] ?? 'Unknown Student',
         'mark': mark,
         'grade': gradeFromMark(mark),
+        'progress': progressFromMark(mark),
         'comment': comment,
+        'coefficient': selectedCoefficient,
       });
     }
 
     if (marksData.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please enter at least one mark'),
-        ),
-      );
+      showSnackBar('Please enter at least one mark');
       return;
     }
 
@@ -257,8 +287,9 @@ class _AddMarksScreenState extends State<AddMarksScreen> {
         className: selectedClassName,
         subjectId: selectedSubjectId,
         subjectName: selectedSubjectName,
-        teacherId: selectedTeacherId,
-        teacherName: selectedTeacherName,
+        teacherId: selectedTeacherId.isEmpty ? currentUserId : selectedTeacherId,
+        teacherName:
+            selectedTeacherName.isEmpty ? currentUserName : selectedTeacherName,
         marksData: marksData,
       );
 
@@ -276,11 +307,7 @@ class _AddMarksScreenState extends State<AddMarksScreen> {
         controller.clear();
       }
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Marks saved successfully'),
-        ),
-      );
+      showSnackBar('Marks saved successfully');
     } catch (error) {
       if (!mounted) return;
 
@@ -288,108 +315,382 @@ class _AddMarksScreenState extends State<AddMarksScreen> {
         isSaving = false;
       });
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            error.toString().replaceAll('Exception: ', ''),
-          ),
-        ),
-      );
+      showSnackBar(error.toString().replaceAll('Exception: ', ''));
     }
   }
 
-  Widget emptyClassState() {
-    return const Center(
+  Widget pngIconBox({
+    required String imagePath,
+    required IconData fallbackIcon,
+    Color color = AppColors.primaryBlue,
+    double size = 54,
+    double padding = 11,
+  }) {
+    return Container(
+      height: size,
+      width: size,
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(size * 0.36),
+      ),
       child: Padding(
-        padding: EdgeInsets.all(24),
-        child: Text(
-          'No classes found yet. Create a class first from Admin Dashboard.',
-          textAlign: TextAlign.center,
-          style: TextStyle(
-            color: AppColors.textGrey,
-            height: 1.5,
-          ),
+        padding: EdgeInsets.all(padding),
+        child: Image.asset(
+          imagePath,
+          fit: BoxFit.contain,
+          errorBuilder: (context, error, stackTrace) {
+            return Icon(
+              fallbackIcon,
+              color: color,
+              size: size * 0.52,
+            );
+          },
         ),
       ),
     );
   }
 
-  Widget emptyStudentState() {
-    return const Padding(
-      padding: EdgeInsets.all(24),
-      child: Center(
-        child: Text(
-          'No students found for this class. Assign students to this class from User Management first.',
-          textAlign: TextAlign.center,
-          style: TextStyle(
-            color: AppColors.textGrey,
-            height: 1.5,
+  Widget headerCard() {
+    String title = 'Add Marks';
+    String subtitle = 'Select a class, subject, and enter student marks.';
+
+    if (currentRole == 'Admin') {
+      title = 'Manage Student Marks';
+      subtitle = 'Review and manage marks for students by class and subject.';
+    }
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [
+            AppColors.primaryBlue,
+            AppColors.darkBlue,
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(28),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.primaryBlue.withValues(alpha: 0.22),
+            blurRadius: 22,
+            offset: const Offset(0, 12),
           ),
+        ],
+      ),
+      child: Stack(
+        children: [
+          Positioned(
+            top: -36,
+            right: -28,
+            child: Container(
+              height: 120,
+              width: 120,
+              decoration: BoxDecoration(
+                color: AppColors.white.withValues(alpha: 0.08),
+                shape: BoxShape.circle,
+              ),
+            ),
+          ),
+          Positioned(
+            bottom: -42,
+            left: -34,
+            child: Container(
+              height: 115,
+              width: 115,
+              decoration: BoxDecoration(
+                color: AppColors.white.withValues(alpha: 0.07),
+                shape: BoxShape.circle,
+              ),
+            ),
+          ),
+          Row(
+            children: [
+              Container(
+                height: 66,
+                width: 66,
+                decoration: BoxDecoration(
+                  color: AppColors.white.withValues(alpha: 0.16),
+                  borderRadius: BorderRadius.circular(24),
+                  border: Border.all(
+                    color: AppColors.white.withValues(alpha: 0.22),
+                  ),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(13),
+                  child: Image.asset(
+                    'assets/icons/add_marks.png',
+                    fit: BoxFit.contain,
+                    errorBuilder: (context, error, stackTrace) {
+                      return const Icon(
+                        Icons.edit_note_outlined,
+                        color: AppColors.white,
+                        size: 34,
+                      );
+                    },
+                  ),
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        color: AppColors.white,
+                        fontSize: 24,
+                        fontWeight: FontWeight.w900,
+                        height: 1.15,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      '$subtitle ${students.length} student(s) loaded.',
+                      style: TextStyle(
+                        color: AppColors.white.withValues(alpha: 0.85),
+                        fontSize: 13,
+                        height: 1.45,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget smallStatusChip({
+    required String text,
+    required Color color,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Text(
+        text,
+        style: TextStyle(
+          color: color,
+          fontWeight: FontWeight.w800,
+          fontSize: 12,
         ),
       ),
+    );
+  }
+
+  Color markColorFromText(String studentId) {
+    final text = markControllers[studentId]?.text.trim() ?? '';
+    final value = double.tryParse(text);
+
+    if (value == null) return AppColors.primaryBlue;
+    if (value >= 14) return AppColors.softGreen;
+    if (value >= 10) return Colors.orange;
+    return AppColors.danger;
+  }
+
+  Widget emptyStateBox({
+    required String title,
+    required String message,
+    required IconData icon,
+  }) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(28),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            pngIconBox(
+              imagePath: 'assets/icons/add_marks.png',
+              fallbackIcon: icon,
+              size: 88,
+              padding: 18,
+            ),
+            const SizedBox(height: 18),
+            Text(
+              title,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: AppColors.textDark,
+                fontSize: 20,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: AppColors.textGrey,
+                height: 1.5,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget emptyClassState() {
+    return emptyStateBox(
+      title: 'No classes yet',
+      message: 'No classes found yet. Create a class first from Admin Dashboard.',
+      icon: Icons.class_outlined,
+    );
+  }
+
+  Widget emptyStudentState() {
+    return emptyStateBox(
+      title: 'No students found',
+      message:
+          'No students found for this class. Assign students to this class from User Management first.',
+      icon: Icons.people_outline,
     );
   }
 
   Widget markCard(Map<String, dynamic> student) {
     final studentId = student['id'] ?? '';
     final studentName = student['fullName'] ?? 'Unknown Student';
+    final color = markColorFromText(studentId);
+
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(24),
+      child: Ink(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: AppColors.white,
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: AppColors.border),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.045),
+              blurRadius: 18,
+              offset: const Offset(0, 10),
+            ),
+          ],
+        ),
+        child: Stack(
+          children: [
+            Positioned(
+              top: -26,
+              right: -24,
+              child: Container(
+                height: 82,
+                width: 82,
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.045),
+                  shape: BoxShape.circle,
+                ),
+              ),
+            ),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    pngIconBox(
+                      imagePath: 'assets/icons/student.png',
+                      fallbackIcon: Icons.person_outline,
+                      color: color,
+                      size: 54,
+                      padding: 11,
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Text(
+                        studentName,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w900,
+                          color: AppColors.textDark,
+                          height: 1.25,
+                        ),
+                      ),
+                    ),
+                    smallStatusChip(
+                      text: selectedClassName.isEmpty
+                          ? 'No class'
+                          : selectedClassName,
+                      color: AppColors.primaryBlue,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: markControllers[studentId],
+                  keyboardType: TextInputType.number,
+                  onChanged: (_) {
+                    setState(() {});
+                  },
+                  decoration: const InputDecoration(
+                    labelText: 'Mark / 20',
+                    prefixIcon: Icon(Icons.grade_outlined),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: commentControllers[studentId],
+                  minLines: 1,
+                  maxLines: 3,
+                  decoration: const InputDecoration(
+                    labelText: 'Teacher Comment / Progress Note',
+                    prefixIcon: Icon(Icons.comment_outlined),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget subjectInfoCard() {
+    if (selectedSubjectId.isEmpty) {
+      return const SizedBox();
+    }
 
     return Container(
-      padding: const EdgeInsets.all(16),
+      margin: const EdgeInsets.only(top: 12),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: AppColors.white,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(22),
         border: Border.all(color: AppColors.border),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 10,
-            offset: const Offset(0, 5),
+            color: Colors.black.withValues(alpha: 0.035),
+            blurRadius: 14,
+            offset: const Offset(0, 8),
           ),
         ],
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
         children: [
-          Row(
-            children: [
-              CircleAvatar(
-                backgroundColor: AppColors.primaryBlue.withValues(alpha: 0.12),
-                child: const Icon(
-                  Icons.person_outline,
-                  color: AppColors.primaryBlue,
-                ),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Text(
-                  studentName,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.textDark,
-                  ),
-                ),
-              ),
-            ],
+          pngIconBox(
+            imagePath: 'assets/icons/results.png',
+            fallbackIcon: Icons.info_outline,
+            size: 46,
+            padding: 10,
           ),
-          const SizedBox(height: 14),
-          TextField(
-            controller: markControllers[studentId],
-            keyboardType: TextInputType.number,
-            decoration: const InputDecoration(
-              labelText: 'Mark / 20',
-              prefixIcon: Icon(Icons.grade_outlined),
-            ),
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: commentControllers[studentId],
-            minLines: 1,
-            maxLines: 3,
-            decoration: const InputDecoration(
-              labelText: 'Comment',
-              prefixIcon: Icon(Icons.comment_outlined),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              'Subject: $selectedSubjectName • Coefficient: ${selectedCoefficient.toStringAsFixed(selectedCoefficient % 1 == 0 ? 0 : 1)}',
+              style: const TextStyle(
+                color: AppColors.textDark,
+                fontWeight: FontWeight.w700,
+                height: 1.4,
+              ),
             ),
           ),
         ],
@@ -397,15 +698,31 @@ class _AddMarksScreenState extends State<AddMarksScreen> {
     );
   }
 
+  void showSnackBar(String message) {
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    String title = 'Add Marks';
+
+    if (currentRole == 'Admin') {
+      title = 'Manage Student Marks';
+    }
+
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: const Text('Add Marks'),
+        title: Text(title),
         actions: [
           IconButton(
-            onPressed: isLoading ? null : loadClasses,
+            onPressed: isLoading ? null : loadInitialData,
             icon: const Icon(Icons.refresh_outlined),
           ),
         ],
@@ -437,6 +754,8 @@ class _AddMarksScreenState extends State<AddMarksScreen> {
                             padding: const EdgeInsets.all(18),
                             child: Column(
                               children: [
+                                headerCard(),
+                                const SizedBox(height: 18),
                                 DropdownButtonFormField<String>(
                                   initialValue: selectedClassId.isEmpty
                                       ? null
@@ -463,8 +782,7 @@ class _AddMarksScreenState extends State<AddMarksScreen> {
                                       : selectedSubjectId,
                                   decoration: const InputDecoration(
                                     labelText: 'Select Subject',
-                                    prefixIcon:
-                                        Icon(Icons.menu_book_outlined),
+                                    prefixIcon: Icon(Icons.menu_book_outlined),
                                   ),
                                   items: subjects.map((subject) {
                                     return DropdownMenuItem<String>(
@@ -475,9 +793,8 @@ class _AddMarksScreenState extends State<AddMarksScreen> {
                                       ),
                                     );
                                   }).toList(),
-                                  onChanged: subjects.isEmpty
-                                      ? null
-                                      : selectSubject,
+                                  onChanged:
+                                      subjects.isEmpty ? null : selectSubject,
                                 ),
                                 if (selectedClassId.isNotEmpty &&
                                     subjects.isEmpty &&
@@ -491,18 +808,17 @@ class _AddMarksScreenState extends State<AddMarksScreen> {
                                     ),
                                   ),
                                 ],
+                                subjectInfoCard(),
                               ],
                             ),
                           ),
                           if (selectedClassId.isEmpty)
-                            const Expanded(
-                              child: Center(
-                                child: Text(
-                                  'Select a class to load students.',
-                                  style: TextStyle(
-                                    color: AppColors.textGrey,
-                                  ),
-                                ),
+                            Expanded(
+                              child: emptyStateBox(
+                                title: 'Select a class',
+                                message:
+                                    'Choose a class to load subjects and students.',
+                                icon: Icons.class_outlined,
                               ),
                             )
                           else if (isLoadingStudents || isLoadingSubjects)
@@ -517,16 +833,23 @@ class _AddMarksScreenState extends State<AddMarksScreen> {
                             )
                           else
                             Expanded(
-                              child: ListView.separated(
-                                padding:
-                                    const EdgeInsets.fromLTRB(18, 0, 18, 90),
-                                itemCount: students.length,
-                                separatorBuilder: (context, index) {
-                                  return const SizedBox(height: 12);
+                              child: RefreshIndicator(
+                                onRefresh: () async {
+                                  await loadSubjectsAndStudents(
+                                    selectedClassId,
+                                  );
                                 },
-                                itemBuilder: (context, index) {
-                                  return markCard(students[index]);
-                                },
+                                child: ListView.separated(
+                                  padding:
+                                      const EdgeInsets.fromLTRB(18, 0, 18, 90),
+                                  itemCount: students.length,
+                                  separatorBuilder: (context, index) {
+                                    return const SizedBox(height: 12);
+                                  },
+                                  itemBuilder: (context, index) {
+                                    return markCard(students[index]);
+                                  },
+                                ),
                               ),
                             ),
                         ],
@@ -535,7 +858,12 @@ class _AddMarksScreenState extends State<AddMarksScreen> {
       bottomNavigationBar: SafeArea(
         child: Container(
           padding: const EdgeInsets.all(18),
-          color: AppColors.white,
+          decoration: const BoxDecoration(
+            color: AppColors.white,
+            border: Border(
+              top: BorderSide(color: AppColors.border),
+            ),
+          ),
           child: SizedBox(
             height: 52,
             width: double.infinity,

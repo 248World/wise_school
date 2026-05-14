@@ -84,7 +84,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
         errorMessage = null;
       });
 
-      final userDoc = await firestore.collection('users').doc(currentUserId).get();
+      final userDoc =
+          await firestore.collection('users').doc(currentUserId).get();
 
       if (!userDoc.exists) {
         currentRole = widget.role;
@@ -293,67 +294,181 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return NetworkImage(imageUrl);
   }
 
+  String cleanRole() {
+    if (currentRole.isNotEmpty) return currentRole;
+    return widget.role;
+  }
+
+  String roleImagePath() {
+    final role = cleanRole().toLowerCase();
+
+    if (role == 'admin') return 'assets/icons/admin.png';
+    if (role == 'teacher') return 'assets/icons/teacher.png';
+    if (role == 'parent') return 'assets/icons/parent.png';
+    if (role == 'student') return 'assets/icons/student.png';
+
+    return 'assets/icons/profile.png';
+  }
+
+  IconData roleIcon() {
+    final role = cleanRole().toLowerCase();
+
+    if (role == 'admin') return Icons.admin_panel_settings_outlined;
+    if (role == 'teacher') return Icons.person_4_outlined;
+    if (role == 'parent') return Icons.family_restroom_outlined;
+    if (role == 'student') return Icons.school_outlined;
+
+    return Icons.account_circle_outlined;
+  }
+
+  Widget rolePngIcon({
+    required double size,
+    required Color color,
+  }) {
+    return Image.asset(
+      roleImagePath(),
+      height: size,
+      width: size,
+      fit: BoxFit.contain,
+      errorBuilder: (context, error, stackTrace) {
+        return Icon(
+          roleIcon(),
+          size: size,
+          color: color,
+        );
+      },
+    );
+  }
+
   Widget profileHeader() {
     final imageProvider = getProfileImage();
 
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(18),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: AppColors.white,
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: AppColors.border),
+        gradient: AppColors.cardBlueGradient,
+        borderRadius: BorderRadius.circular(30),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 10,
-            offset: const Offset(0, 5),
+            color: AppColors.primaryBlue.withValues(alpha: 0.22),
+            blurRadius: 22,
+            offset: const Offset(0, 12),
           ),
         ],
       ),
-      child: Column(
+      child: Stack(
         children: [
-          CircleAvatar(
-            radius: 48,
-            backgroundColor: AppColors.primaryBlue,
-            backgroundImage: imageProvider,
-            child: imageProvider == null
-                ? const Icon(
-                    Icons.person_outline,
-                    color: AppColors.white,
-                    size: 48,
-                  )
-                : null,
-          ),
-          const SizedBox(height: 14),
-          Text(
-            fullNameController.text.trim().isEmpty
-                ? 'User Profile'
-                : fullNameController.text.trim(),
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-              fontSize: 22,
-              fontWeight: FontWeight.bold,
-              color: AppColors.textDark,
-            ),
-          ),
-          const SizedBox(height: 5),
-          Text(
-            currentRole.isEmpty ? widget.role : currentRole,
-            style: const TextStyle(
-              color: AppColors.primaryBlue,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          if (email.isNotEmpty) ...[
-            const SizedBox(height: 5),
-            Text(
-              email,
-              style: const TextStyle(
-                color: AppColors.textGrey,
+          Positioned(
+            top: -38,
+            right: -26,
+            child: Container(
+              height: 120,
+              width: 120,
+              decoration: BoxDecoration(
+                color: AppColors.white.withValues(alpha: 0.08),
+                shape: BoxShape.circle,
               ),
             ),
-          ],
+          ),
+          Positioned(
+            bottom: -44,
+            left: -36,
+            child: Container(
+              height: 115,
+              width: 115,
+              decoration: BoxDecoration(
+                color: AppColors.white.withValues(alpha: 0.07),
+                shape: BoxShape.circle,
+              ),
+            ),
+          ),
+          Column(
+            children: [
+              Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  CircleAvatar(
+                    radius: 52,
+                    backgroundColor: AppColors.white.withValues(alpha: 0.18),
+                    backgroundImage: imageProvider,
+                    child: imageProvider == null
+                        ? rolePngIcon(
+                            size: 48,
+                            color: AppColors.white,
+                          )
+                        : null,
+                  ),
+                  Positioned(
+                    bottom: -2,
+                    right: -2,
+                    child: Container(
+                      height: 34,
+                      width: 34,
+                      decoration: BoxDecoration(
+                        color: AppColors.white,
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(
+                          color: AppColors.primaryBlue.withValues(alpha: 0.12),
+                        ),
+                      ),
+                      child: const Icon(
+                        Icons.edit_outlined,
+                        color: AppColors.primaryBlue,
+                        size: 18,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Text(
+                fullNameController.text.trim().isEmpty
+                    ? 'User Profile'
+                    : fullNameController.text.trim(),
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 23,
+                  fontWeight: FontWeight.w900,
+                  color: AppColors.white,
+                  height: 1.2,
+                ),
+              ),
+              const SizedBox(height: 7),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 7,
+                ),
+                decoration: BoxDecoration(
+                  color: AppColors.white.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(30),
+                  border: Border.all(
+                    color: AppColors.white.withValues(alpha: 0.20),
+                  ),
+                ),
+                child: Text(
+                  cleanRole(),
+                  style: const TextStyle(
+                    color: AppColors.white,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 12,
+                  ),
+                ),
+              ),
+              if (email.isNotEmpty) ...[
+                const SizedBox(height: 9),
+                Text(
+                  email,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: AppColors.white.withValues(alpha: 0.82),
+                    fontSize: 13,
+                  ),
+                ),
+              ],
+            ],
+          ),
         ],
       ),
     );
@@ -387,24 +502,74 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
+  Widget formSectionTitle({
+    required String title,
+    required IconData icon,
+    required String imagePath,
+  }) {
+    return Row(
+      children: [
+        Container(
+          height: 38,
+          width: 38,
+          decoration: BoxDecoration(
+            color: AppColors.lightBlue,
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(8),
+            child: Image.asset(
+              imagePath,
+              fit: BoxFit.contain,
+              errorBuilder: (context, error, stackTrace) {
+                return Icon(
+                  icon,
+                  color: AppColors.primaryBlue,
+                  size: 20,
+                );
+              },
+            ),
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Text(
+            title,
+            style: const TextStyle(
+              color: AppColors.textDark,
+              fontSize: 18,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget profileForm() {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         color: AppColors.white,
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: AppColors.border),
+        borderRadius: BorderRadius.circular(26),
+        border: Border.all(color: AppColors.softBorder),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 10,
-            offset: const Offset(0, 5),
+            color: Colors.black.withValues(alpha: 0.045),
+            blurRadius: 18,
+            offset: const Offset(0, 10),
           ),
         ],
       ),
       child: Column(
         children: [
+          formSectionTitle(
+            title: 'Profile Information',
+            icon: Icons.account_circle_outlined,
+            imagePath: 'assets/icons/profile.png',
+          ),
+          const SizedBox(height: 18),
           profileField(
             controller: profileImageUrlController,
             label: 'Profile Image URL',
@@ -447,7 +612,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
           const SizedBox(height: 14),
           DropdownButtonFormField<String>(
-            value: selectedGender,
+            initialValue: selectedGender,
             decoration: const InputDecoration(
               labelText: 'Gender',
               prefixIcon: Icon(Icons.people_outline),
@@ -519,6 +684,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 style: const TextStyle(
                   color: AppColors.danger,
                   fontWeight: FontWeight.bold,
+                ),
+              ),
+              style: OutlinedButton.styleFrom(
+                side: const BorderSide(
+                  color: AppColors.danger,
+                  width: 1.2,
                 ),
               ),
             ),

@@ -22,6 +22,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   String selectedRole = 'Student';
 
+  bool obscurePassword = true;
+  bool obscureConfirmPassword = true;
+
   final List<String> roles = [
     'Admin',
     'Teacher',
@@ -118,143 +121,252 @@ class _RegisterScreenState extends State<RegisterScreen> {
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final authProvider = context.watch<AuthProvider>();
-
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      appBar: AppBar(
-        title: const Text('Create Account'),
+  Widget bubble({
+    required double size,
+    required double opacity,
+  }) {
+    return Container(
+      height: size,
+      width: size,
+      decoration: BoxDecoration(
+        color: AppColors.white.withValues(alpha: opacity),
+        shape: BoxShape.circle,
       ),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'Join Wise School',
-                style: TextStyle(
-                  fontSize: 28,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.textDark,
-                ),
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                'Create an account and choose the correct role.',
-                style: TextStyle(
-                  fontSize: 15,
-                  color: AppColors.textGrey,
-                ),
-              ),
-              const SizedBox(height: 28),
+    );
+  }
 
-              TextField(
-                controller: fullNameController,
-                textCapitalization: TextCapitalization.words,
-                decoration: const InputDecoration(
-                  labelText: 'Full Name',
-                  prefixIcon: Icon(Icons.person_outline),
-                ),
-              ),
-
-              const SizedBox(height: 16),
-
-              TextField(
-                controller: emailController,
-                keyboardType: TextInputType.emailAddress,
-                decoration: const InputDecoration(
-                  labelText: 'Email',
-                  prefixIcon: Icon(Icons.email_outlined),
-                ),
-              ),
-
-              const SizedBox(height: 16),
-
-              TextField(
-                controller: phoneController,
-                keyboardType: TextInputType.phone,
-                decoration: const InputDecoration(
-                  labelText: 'Phone',
-                  prefixIcon: Icon(Icons.phone_outlined),
-                ),
-              ),
-
-              const SizedBox(height: 16),
-
-              DropdownButtonFormField<String>(
-                initialValue: selectedRole,
-                decoration: const InputDecoration(
-                  labelText: 'Select Role',
-                  prefixIcon: Icon(Icons.badge_outlined),
-                ),
-                items: roles.map((role) {
-                  return DropdownMenuItem<String>(
-                    value: role,
-                    child: Text(role),
-                  );
-                }).toList(),
-                onChanged: (value) {
-                  setState(() {
-                    selectedRole = value!;
-                  });
+  Widget topHeader(BuildContext context) {
+    return Container(
+      height: 275,
+      width: double.infinity,
+      decoration: const BoxDecoration(
+        gradient: AppColors.authGradient,
+      ),
+      child: Stack(
+        children: [
+          Positioned(
+            top: 38,
+            left: 14,
+            child: SafeArea(
+              child: IconButton(
+                onPressed: () {
+                  Navigator.pop(context);
                 },
-              ),
-
-              const SizedBox(height: 16),
-
-              TextField(
-                controller: passwordController,
-                obscureText: true,
-                decoration: const InputDecoration(
-                  labelText: 'Password',
-                  prefixIcon: Icon(Icons.lock_outline),
+                icon: const Icon(
+                  Icons.arrow_back,
+                  color: AppColors.white,
                 ),
               ),
-
-              const SizedBox(height: 16),
-
-              TextField(
-                controller: confirmPasswordController,
-                obscureText: true,
-                decoration: const InputDecoration(
-                  labelText: 'Confirm Password',
-                  prefixIcon: Icon(Icons.lock_reset_outlined),
-                ),
-              ),
-
-              const SizedBox(height: 28),
-
-              SizedBox(
-                width: double.infinity,
-                height: 52,
-                child: ElevatedButton(
-                  onPressed: authProvider.isLoading ? null : registerUser,
-                  child: authProvider.isLoading
-                      ? const SizedBox(
-                          height: 22,
-                          width: 22,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: AppColors.white,
-                          ),
-                        )
-                      : const Text('Create Account'),
-                ),
-              ),
-
-              const SizedBox(height: 12),
-
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Text(
-                    'Already have an account?',
-                    style: TextStyle(color: AppColors.textGrey),
+            ),
+          ),
+          Positioned(
+            top: 42,
+            right: 42,
+            child: bubble(size: 18, opacity: 0.12),
+          ),
+          Positioned(
+            top: 84,
+            right: -28,
+            child: bubble(size: 112, opacity: 0.08),
+          ),
+          Positioned(
+            top: 138,
+            left: -54,
+            child: bubble(size: 160, opacity: 0.08),
+          ),
+          Positioned(
+            top: 180,
+            right: 82,
+            child: bubble(size: 42, opacity: 0.12),
+          ),
+          Positioned(
+            left: 28,
+            right: 28,
+            bottom: 32,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Create\nAccount',
+                  style: TextStyle(
+                    color: AppColors.white,
+                    fontSize: 34,
+                    fontWeight: FontWeight.w900,
+                    height: 1.1,
                   ),
-                  TextButton(
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  'Join Wise School and choose your role.',
+                  style: TextStyle(
+                    color: AppColors.white.withValues(alpha: 0.86),
+                    fontSize: 15,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget formPanel(BuildContext context, AuthProvider authProvider) {
+    return Expanded(
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.fromLTRB(24, 34, 24, 24),
+        decoration: const BoxDecoration(
+          color: AppColors.white,
+          borderRadius: BorderRadius.vertical(
+            top: Radius.circular(38),
+          ),
+        ),
+        child: SafeArea(
+          top: false,
+          child: SingleChildScrollView(
+            child: Column(
+              children: [
+                TextField(
+                  controller: fullNameController,
+                  textCapitalization: TextCapitalization.words,
+                  decoration: const InputDecoration(
+                    labelText: 'Full Name',
+                    prefixIcon: Icon(Icons.person_outline),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                TextField(
+                  controller: emailController,
+                  keyboardType: TextInputType.emailAddress,
+                  decoration: const InputDecoration(
+                    labelText: 'Email',
+                    prefixIcon: Icon(Icons.email_outlined),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                TextField(
+                  controller: phoneController,
+                  keyboardType: TextInputType.phone,
+                  decoration: const InputDecoration(
+                    labelText: 'Phone',
+                    prefixIcon: Icon(Icons.phone_outlined),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                DropdownButtonFormField<String>(
+                  initialValue: selectedRole,
+                  decoration: const InputDecoration(
+                    labelText: 'Select Role',
+                    prefixIcon: Icon(Icons.badge_outlined),
+                  ),
+                  items: roles.map((role) {
+                    return DropdownMenuItem<String>(
+                      value: role,
+                      child: Text(role),
+                    );
+                  }).toList(),
+                  onChanged: authProvider.isLoading
+                      ? null
+                      : (value) {
+                          if (value == null) return;
+
+                          setState(() {
+                            selectedRole = value;
+                          });
+                        },
+                ),
+                const SizedBox(height: 14),
+                TextField(
+                  controller: passwordController,
+                  obscureText: obscurePassword,
+                  decoration: InputDecoration(
+                    labelText: 'Password',
+                    prefixIcon: const Icon(Icons.lock_outline),
+                    suffixIcon: IconButton(
+                      onPressed: () {
+                        setState(() {
+                          obscurePassword = !obscurePassword;
+                        });
+                      },
+                      icon: Icon(
+                        obscurePassword
+                            ? Icons.visibility_off_outlined
+                            : Icons.visibility_outlined,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                TextField(
+                  controller: confirmPasswordController,
+                  obscureText: obscureConfirmPassword,
+                  decoration: InputDecoration(
+                    labelText: 'Confirm Password',
+                    prefixIcon: const Icon(Icons.lock_reset_outlined),
+                    suffixIcon: IconButton(
+                      onPressed: () {
+                        setState(() {
+                          obscureConfirmPassword = !obscureConfirmPassword;
+                        });
+                      },
+                      icon: Icon(
+                        obscureConfirmPassword
+                            ? Icons.visibility_off_outlined
+                            : Icons.visibility_outlined,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 22),
+                SizedBox(
+                  width: double.infinity,
+                  height: 52,
+                  child: ElevatedButton(
+                    onPressed: authProvider.isLoading ? null : registerUser,
+                    child: authProvider.isLoading
+                        ? const SizedBox(
+                            height: 22,
+                            width: 22,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: AppColors.white,
+                            ),
+                          )
+                        : const Text('Sign up'),
+                  ),
+                ),
+                const SizedBox(height: 22),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Container(
+                        height: 1,
+                        color: AppColors.border,
+                      ),
+                    ),
+                    const Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 12),
+                      child: Text(
+                        'or',
+                        style: TextStyle(
+                          color: AppColors.textGrey,
+                        ),
+                      ),
+                    ),
+                    Expanded(
+                      child: Container(
+                        height: 1,
+                        color: AppColors.border,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 22),
+                SizedBox(
+                  width: double.infinity,
+                  height: 52,
+                  child: OutlinedButton(
                     onPressed: authProvider.isLoading
                         ? null
                         : () {
@@ -265,13 +377,30 @@ class _RegisterScreenState extends State<RegisterScreen> {
                               ),
                             );
                           },
-                    child: const Text('Login'),
+                    child: const Text('Log in'),
                   ),
-                ],
-              ),
-            ],
+                ),
+                const SizedBox(height: 18),
+              ],
+            ),
           ),
         ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final authProvider = context.watch<AuthProvider>();
+
+    return Scaffold(
+      backgroundColor: AppColors.authBackground,
+      resizeToAvoidBottomInset: true,
+      body: Column(
+        children: [
+          topHeader(context),
+          formPanel(context, authProvider),
+        ],
       ),
     );
   }

@@ -393,15 +393,9 @@ class _MessagesScreenState extends State<MessagesScreen> {
       batch.set(
         conversationRef,
         {
-          'userId': isAdmin
-              ? selectedReceiverId
-              : currentUserId,
-          'userName': isAdmin
-              ? selectedReceiverName
-              : currentUserName,
-          'userRole': isAdmin
-              ? getReceiverRoleForNotification()
-              : currentRole,
+          'userId': isAdmin ? selectedReceiverId : currentUserId,
+          'userName': isAdmin ? selectedReceiverName : currentUserName,
+          'userRole': isAdmin ? getReceiverRoleForNotification() : currentRole,
           'lastMessage': text,
           'lastMessageAt': FieldValue.serverTimestamp(),
           'lastSenderId': currentUserId,
@@ -472,9 +466,10 @@ class _MessagesScreenState extends State<MessagesScreen> {
     showModalBottomSheet(
       context: context,
       backgroundColor: AppColors.white,
+      isScrollControlled: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(
-          top: Radius.circular(24),
+          top: Radius.circular(28),
         ),
       ),
       builder: (_) {
@@ -483,13 +478,32 @@ class _MessagesScreenState extends State<MessagesScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(
-                'Start Chat with $searchRole',
-                style: const TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.textDark,
-                ),
+              sheetHandle(),
+              const SizedBox(height: 14),
+              Row(
+                children: [
+                  pngIconBox(
+                    imagePath: isTeacherChat
+                        ? 'assets/icons/teacher.png'
+                        : 'assets/icons/parent.png',
+                    fallbackIcon: isTeacherChat
+                        ? Icons.person_4_outlined
+                        : Icons.family_restroom_outlined,
+                    size: 44,
+                    padding: 9,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'Start Chat with $searchRole',
+                      style: const TextStyle(
+                        fontSize: 21,
+                        fontWeight: FontWeight.w900,
+                        color: AppColors.textDark,
+                      ),
+                    ),
+                  ),
+                ],
               ),
               const SizedBox(height: 16),
               if (users.isEmpty)
@@ -511,29 +525,73 @@ class _MessagesScreenState extends State<MessagesScreen> {
                     itemBuilder: (context, index) {
                       final user = users[index];
 
-                      return ListTile(
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
-                          side: const BorderSide(color: AppColors.border),
-                        ),
-                        leading: const CircleAvatar(
-                          backgroundColor: AppColors.primaryBlue,
-                          child: Icon(
-                            Icons.person_outline,
-                            color: AppColors.white,
+                      return Material(
+                        color: Colors.transparent,
+                        borderRadius: BorderRadius.circular(18),
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(18),
+                          onTap: () async {
+                            Navigator.pop(context);
+
+                            await openUserConversation(
+                              userId: user['id'] ?? '',
+                              userName: user['fullName'] ?? searchRole,
+                              userRole: searchRole,
+                            );
+                          },
+                          child: Ink(
+                            padding: const EdgeInsets.all(14),
+                            decoration: BoxDecoration(
+                              color: AppColors.white,
+                              borderRadius: BorderRadius.circular(18),
+                              border: Border.all(color: AppColors.softBorder),
+                            ),
+                            child: Row(
+                              children: [
+                                pngIconBox(
+                                  imagePath: isTeacherChat
+                                      ? 'assets/icons/teacher.png'
+                                      : 'assets/icons/parent.png',
+                                  fallbackIcon: isTeacherChat
+                                      ? Icons.person_4_outlined
+                                      : Icons.family_restroom_outlined,
+                                  size: 46,
+                                  padding: 10,
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        user['fullName'] ?? searchRole,
+                                        style: const TextStyle(
+                                          color: AppColors.textDark,
+                                          fontWeight: FontWeight.w900,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        user['email'] ?? '',
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: const TextStyle(
+                                          color: AppColors.textGrey,
+                                          fontSize: 13,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const Icon(
+                                  Icons.arrow_forward_ios_rounded,
+                                  color: AppColors.textLight,
+                                  size: 14,
+                                ),
+                              ],
+                            ),
                           ),
                         ),
-                        title: Text(user['fullName'] ?? searchRole),
-                        subtitle: Text(user['email'] ?? ''),
-                        onTap: () async {
-                          Navigator.pop(context);
-
-                          await openUserConversation(
-                            userId: user['id'] ?? '',
-                            userName: user['fullName'] ?? searchRole,
-                            userRole: searchRole,
-                          );
-                        },
                       );
                     },
                   ),
@@ -605,99 +663,302 @@ class _MessagesScreenState extends State<MessagesScreen> {
     if (createdAt is Timestamp) {
       final date = createdAt.toDate();
 
-      return '${date.day}/${date.month}/${date.year}';
+      final day = date.day.toString().padLeft(2, '0');
+      final month = date.month.toString().padLeft(2, '0');
+
+      return '$day/$month';
     }
 
     return 'Recently';
   }
 
+  Widget sheetHandle() {
+    return Container(
+      height: 5,
+      width: 44,
+      decoration: BoxDecoration(
+        color: AppColors.border,
+        borderRadius: BorderRadius.circular(20),
+      ),
+    );
+  }
+
+  Widget pngIconBox({
+    required String imagePath,
+    required IconData fallbackIcon,
+    Color color = AppColors.primaryBlue,
+    double size = 54,
+    double padding = 11,
+  }) {
+    return Container(
+      height: size,
+      width: size,
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(size * 0.36),
+      ),
+      child: Padding(
+        padding: EdgeInsets.all(padding),
+        child: Image.asset(
+          imagePath,
+          fit: BoxFit.contain,
+          errorBuilder: (context, error, stackTrace) {
+            return Icon(
+              fallbackIcon,
+              color: color,
+              size: size * 0.52,
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  String roleImagePath(String role) {
+    if (role == 'Admin') return 'assets/icons/admin.png';
+    if (role == 'Teacher') return 'assets/icons/teacher.png';
+    if (role == 'Parent') return 'assets/icons/parent.png';
+    return 'assets/icons/profile.png';
+  }
+
+  IconData roleFallbackIcon(String role) {
+    if (role == 'Admin') return Icons.admin_panel_settings_outlined;
+    if (role == 'Teacher') return Icons.person_4_outlined;
+    if (role == 'Parent') return Icons.family_restroom_outlined;
+    return Icons.account_circle_outlined;
+  }
+
+  Widget headerCard() {
+    String title = 'Messages';
+    String subtitle = 'Chat and stay connected with the school.';
+
+    if (currentRole == 'Admin' && isTeacherChat) {
+      title = 'Teacher Messages';
+      subtitle = 'Manage conversations with teachers.';
+    }
+
+    if (currentRole == 'Admin' && !isTeacherChat) {
+      title = 'Parent Messages';
+      subtitle = 'Manage conversations with parents.';
+    }
+
+    if (currentRole == 'Parent') {
+      title = 'Admin Chat';
+      subtitle = 'Send messages to the school admin.';
+    }
+
+    if (currentRole == 'Teacher') {
+      title = 'Admin Chat';
+      subtitle = 'Send messages to the school admin.';
+    }
+
+    return Container(
+      margin: const EdgeInsets.fromLTRB(18, 18, 18, 12),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: AppColors.cardBlueGradient,
+        borderRadius: BorderRadius.circular(28),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.primaryBlue.withValues(alpha: 0.22),
+            blurRadius: 22,
+            offset: const Offset(0, 12),
+          ),
+        ],
+      ),
+      child: Stack(
+        children: [
+          Positioned(
+            top: -36,
+            right: -28,
+            child: Container(
+              height: 120,
+              width: 120,
+              decoration: BoxDecoration(
+                color: AppColors.white.withValues(alpha: 0.08),
+                shape: BoxShape.circle,
+              ),
+            ),
+          ),
+          Positioned(
+            bottom: -42,
+            left: -34,
+            child: Container(
+              height: 115,
+              width: 115,
+              decoration: BoxDecoration(
+                color: AppColors.white.withValues(alpha: 0.07),
+                shape: BoxShape.circle,
+              ),
+            ),
+          ),
+          Row(
+            children: [
+              Container(
+                height: 66,
+                width: 66,
+                decoration: BoxDecoration(
+                  color: AppColors.white.withValues(alpha: 0.16),
+                  borderRadius: BorderRadius.circular(24),
+                  border: Border.all(
+                    color: AppColors.white.withValues(alpha: 0.22),
+                  ),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(13),
+                  child: Image.asset(
+                    isTeacherChat
+                        ? 'assets/icons/teacher_messages.png'
+                        : 'assets/icons/messages.png',
+                    fit: BoxFit.contain,
+                    errorBuilder: (context, error, stackTrace) {
+                      return const Icon(
+                        Icons.chat_bubble_outline,
+                        color: AppColors.white,
+                        size: 34,
+                      );
+                    },
+                  ),
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        color: AppColors.white,
+                        fontSize: 24,
+                        fontWeight: FontWeight.w900,
+                        height: 1.15,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      subtitle,
+                      style: TextStyle(
+                        color: AppColors.white.withValues(alpha: 0.85),
+                        fontSize: 13,
+                        height: 1.45,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget conversationTile(Map<String, dynamic> conversation) {
     final conversationId = conversation['id'] ?? '';
     final userName = conversation['userName'] ?? userRoleLabel;
+    final userRole = conversation['userRole'] ?? userRoleLabel;
     final lastMessage = conversation['lastMessage'] ?? '';
     final lastMessageAt = conversation['lastMessageAt'];
     final unreadByAdmin = conversation[unreadForAdminKey] == true;
     final isSelected = selectedConversationId == conversationId;
 
-    return InkWell(
-      borderRadius: BorderRadius.circular(18),
-      onTap: () {
-        selectConversation(conversation);
-      },
-      child: Container(
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: isSelected
-              ? AppColors.primaryBlue.withValues(alpha: 0.10)
-              : AppColors.white,
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(
-            color: isSelected ? AppColors.primaryBlue : AppColors.border,
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(22),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(22),
+        onTap: () {
+          selectConversation(conversation);
+        },
+        child: Ink(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: isSelected
+                ? AppColors.primaryBlue.withValues(alpha: 0.08)
+                : AppColors.white,
+            borderRadius: BorderRadius.circular(22),
+            border: Border.all(
+              color: isSelected ? AppColors.primaryBlue : AppColors.softBorder,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.035),
+                blurRadius: 14,
+                offset: const Offset(0, 8),
+              ),
+            ],
           ),
-        ),
-        child: Row(
-          children: [
-            Stack(
-              children: [
-                const CircleAvatar(
-                  radius: 24,
-                  backgroundColor: AppColors.primaryBlue,
-                  child: Icon(
-                    Icons.person_outline,
-                    color: AppColors.white,
+          child: Row(
+            children: [
+              Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  pngIconBox(
+                    imagePath: roleImagePath(userRole),
+                    fallbackIcon: roleFallbackIcon(userRole),
+                    size: 50,
+                    padding: 11,
                   ),
-                ),
-                if (unreadByAdmin)
-                  Positioned(
-                    right: 0,
-                    top: 0,
-                    child: Container(
-                      height: 12,
-                      width: 12,
-                      decoration: const BoxDecoration(
-                        color: AppColors.danger,
-                        shape: BoxShape.circle,
+                  if (unreadByAdmin)
+                    Positioned(
+                      right: -1,
+                      top: -1,
+                      child: Container(
+                        height: 13,
+                        width: 13,
+                        decoration: BoxDecoration(
+                          color: AppColors.danger,
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: AppColors.white,
+                            width: 2,
+                          ),
+                        ),
                       ),
                     ),
-                  ),
-              ],
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    userName,
-                    style: const TextStyle(
-                      color: AppColors.textDark,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    lastMessage.toString().isEmpty
-                        ? 'No message yet'
-                        : lastMessage,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: AppColors.textGrey,
-                      fontSize: 13,
-                    ),
-                  ),
                 ],
               ),
-            ),
-            const SizedBox(width: 8),
-            Text(
-              formatDateTime(lastMessageAt),
-              style: const TextStyle(
-                color: AppColors.textGrey,
-                fontSize: 11,
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      userName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: AppColors.textDark,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      lastMessage.toString().isEmpty
+                          ? 'No message yet'
+                          : lastMessage,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: AppColors.textGrey,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
-          ],
+              const SizedBox(width: 8),
+              Text(
+                formatDateTime(lastMessageAt),
+                style: const TextStyle(
+                  color: AppColors.textLight,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -715,23 +976,23 @@ class _MessagesScreenState extends State<MessagesScreen> {
     return Align(
       alignment: isMine ? Alignment.centerRight : Alignment.centerLeft,
       child: Container(
-        constraints: const BoxConstraints(maxWidth: 280),
+        constraints: const BoxConstraints(maxWidth: 285),
         margin: const EdgeInsets.only(bottom: 10),
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.fromLTRB(13, 11, 13, 9),
         decoration: BoxDecoration(
           color: isMine ? AppColors.primaryBlue : AppColors.white,
           borderRadius: BorderRadius.only(
-            topLeft: const Radius.circular(18),
-            topRight: const Radius.circular(18),
-            bottomLeft: Radius.circular(isMine ? 18 : 4),
-            bottomRight: Radius.circular(isMine ? 4 : 18),
+            topLeft: const Radius.circular(20),
+            topRight: const Radius.circular(20),
+            bottomLeft: Radius.circular(isMine ? 20 : 6),
+            bottomRight: Radius.circular(isMine ? 6 : 20),
           ),
-          border: isMine ? null : Border.all(color: AppColors.border),
+          border: isMine ? null : Border.all(color: AppColors.softBorder),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withValues(alpha: 0.04),
-              blurRadius: 8,
-              offset: const Offset(0, 4),
+              blurRadius: 10,
+              offset: const Offset(0, 5),
             ),
           ],
         ),
@@ -742,9 +1003,11 @@ class _MessagesScreenState extends State<MessagesScreen> {
             if (!isMine)
               Text(
                 '$senderName • $senderRole',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
                   color: AppColors.textGrey,
-                  fontWeight: FontWeight.bold,
+                  fontWeight: FontWeight.w800,
                   fontSize: 12,
                 ),
               ),
@@ -761,9 +1024,10 @@ class _MessagesScreenState extends State<MessagesScreen> {
               formatTime(createdAt),
               style: TextStyle(
                 color: isMine
-                    ? AppColors.white.withValues(alpha: 0.8)
-                    : AppColors.textGrey,
+                    ? AppColors.white.withValues(alpha: 0.78)
+                    : AppColors.textLight,
                 fontSize: 11,
+                fontWeight: FontWeight.w600,
               ),
             ),
           ],
@@ -775,8 +1039,9 @@ class _MessagesScreenState extends State<MessagesScreen> {
   Widget adminConversationList() {
     return Column(
       children: [
+        headerCard(),
         Padding(
-          padding: const EdgeInsets.fromLTRB(18, 18, 18, 10),
+          padding: const EdgeInsets.fromLTRB(18, 4, 18, 10),
           child: Row(
             children: [
               Expanded(
@@ -784,7 +1049,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
                   '$userRoleLabel Conversations',
                   style: const TextStyle(
                     fontSize: 18,
-                    fontWeight: FontWeight.bold,
+                    fontWeight: FontWeight.w900,
                     color: AppColors.textDark,
                   ),
                 ),
@@ -841,22 +1106,23 @@ class _MessagesScreenState extends State<MessagesScreen> {
         ? 'Admin ↔ $userRoleLabel chat'
         : 'Send messages to the school admin';
 
+    final avatarRole = isAdmin ? selectedReceiverRole : 'Admin';
+
     return Container(
       padding: const EdgeInsets.fromLTRB(18, 14, 18, 14),
       decoration: const BoxDecoration(
         color: AppColors.white,
         border: Border(
-          bottom: BorderSide(color: AppColors.border),
+          bottom: BorderSide(color: AppColors.softBorder),
         ),
       ),
       child: Row(
         children: [
-          const CircleAvatar(
-            backgroundColor: AppColors.primaryBlue,
-            child: Icon(
-              Icons.chat_outlined,
-              color: AppColors.white,
-            ),
+          pngIconBox(
+            imagePath: roleImagePath(avatarRole),
+            fallbackIcon: roleFallbackIcon(avatarRole),
+            size: 46,
+            padding: 10,
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -865,15 +1131,19 @@ class _MessagesScreenState extends State<MessagesScreen> {
               children: [
                 Text(
                   title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
                     color: AppColors.textDark,
-                    fontWeight: FontWeight.bold,
+                    fontWeight: FontWeight.w900,
                     fontSize: 16,
                   ),
                 ),
                 const SizedBox(height: 3),
                 Text(
                   subtitle,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
                     color: AppColors.textGrey,
                     fontSize: 13,
@@ -905,12 +1175,39 @@ class _MessagesScreenState extends State<MessagesScreen> {
     }
 
     if (messages.isEmpty) {
-      return const Expanded(
+      return Expanded(
         child: Center(
-          child: Text(
-            'No messages yet. Start the conversation.',
-            textAlign: TextAlign.center,
-            style: TextStyle(color: AppColors.textGrey),
+          child: Padding(
+            padding: const EdgeInsets.all(28),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                pngIconBox(
+                  imagePath: 'assets/icons/messages.png',
+                  fallbackIcon: Icons.chat_bubble_outline,
+                  size: 86,
+                  padding: 18,
+                ),
+                const SizedBox(height: 18),
+                const Text(
+                  'No messages yet',
+                  style: TextStyle(
+                    color: AppColors.textDark,
+                    fontSize: 20,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'Start the conversation by sending a message.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: AppColors.textGrey,
+                    height: 1.5,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       );
@@ -937,47 +1234,50 @@ class _MessagesScreenState extends State<MessagesScreen> {
       decoration: const BoxDecoration(
         color: AppColors.white,
         border: Border(
-          top: BorderSide(color: AppColors.border),
+          top: BorderSide(color: AppColors.softBorder),
         ),
       ),
-      child: Row(
-        children: [
-          Expanded(
-            child: TextField(
-              controller: messageController,
-              minLines: 1,
-              maxLines: 4,
-              decoration: const InputDecoration(
-                hintText: 'Write a message...',
-                prefixIcon: Icon(Icons.message_outlined),
-              ),
-            ),
-          ),
-          const SizedBox(width: 8),
-          SizedBox(
-            height: 50,
-            width: 50,
-            child: ElevatedButton(
-              onPressed: isSending ? null : sendMessage,
-              style: ElevatedButton.styleFrom(
-                padding: EdgeInsets.zero,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
+      child: SafeArea(
+        top: false,
+        child: Row(
+          children: [
+            Expanded(
+              child: TextField(
+                controller: messageController,
+                minLines: 1,
+                maxLines: 4,
+                decoration: const InputDecoration(
+                  hintText: 'Write a message...',
+                  prefixIcon: Icon(Icons.message_outlined),
                 ),
               ),
-              child: isSending
-                  ? const SizedBox(
-                      height: 20,
-                      width: 20,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: AppColors.white,
-                      ),
-                    )
-                  : const Icon(Icons.send_outlined),
             ),
-          ),
-        ],
+            const SizedBox(width: 8),
+            SizedBox(
+              height: 50,
+              width: 50,
+              child: ElevatedButton(
+                onPressed: isSending ? null : sendMessage,
+                style: ElevatedButton.styleFrom(
+                  padding: EdgeInsets.zero,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                ),
+                child: isSending
+                    ? const SizedBox(
+                        height: 20,
+                        width: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: AppColors.white,
+                        ),
+                      )
+                    : const Icon(Icons.send_outlined),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -985,6 +1285,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
   Widget userChatLayout() {
     return Column(
       children: [
+        headerCard(),
         chatHeader(),
         chatMessagesArea(),
         messageInputArea(),
@@ -1001,7 +1302,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
           return Row(
             children: [
               SizedBox(
-                width: 320,
+                width: 340,
                 child: adminConversationList(),
               ),
               const VerticalDivider(width: 1),
@@ -1045,7 +1346,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
                       'Back to Conversations',
                       style: TextStyle(
                         color: AppColors.textDark,
-                        fontWeight: FontWeight.bold,
+                        fontWeight: FontWeight.w900,
                       ),
                     ),
                   ),
