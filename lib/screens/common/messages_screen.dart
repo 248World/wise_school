@@ -7,10 +7,12 @@ import '../../providers/auth_provider.dart';
 
 class MessagesScreen extends StatefulWidget {
   final String role;
+  final String targetRole;
 
   const MessagesScreen({
     super.key,
     this.role = 'Parent',
+    this.targetRole = 'Admin',
   });
 
   @override
@@ -33,8 +35,8 @@ class _MessagesScreenState extends State<MessagesScreen> {
   List<Map<String, dynamic>> messages = [];
 
   String selectedConversationId = '';
-  String selectedParentName = '';
-  String selectedParentId = '';
+  String selectedReceiverName = '';
+  String selectedReceiverId = '';
 
   bool get isAdmin {
     return currentRole == 'Admin';
@@ -42,6 +44,43 @@ class _MessagesScreenState extends State<MessagesScreen> {
 
   bool get isParent {
     return currentRole == 'Parent';
+  }
+
+  bool get isTeacher {
+    return currentRole == 'Teacher';
+  }
+
+  bool get isTeacherChat {
+    return currentRole == 'Teacher' ||
+        widget.targetRole == 'Teacher';
+  }
+
+  String get collectionName {
+    if (isTeacherChat) {
+      return 'teacher_admin_chats';
+    }
+
+    return 'parent_admin_chats';
+  }
+
+  String get userRoleLabel {
+    if (isTeacherChat) {
+      return 'Teacher';
+    }
+
+    return 'Parent';
+  }
+
+  String get unreadForAdminKey {
+    return 'unreadByAdmin';
+  }
+
+  String get unreadForUserKey {
+    if (isTeacherChat) {
+      return 'unreadByTeacher';
+    }
+
+    return 'unreadByParent';
   }
 
   @override
@@ -72,9 +111,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
         errorMessage = null;
       });
 
-      if (isParent) {
-        await loadParentConversation();
-      } else if (isAdmin) {
+      if (isAdmin) {
         await loadAdminConversations();
       } else {
         await loadUserConversation();
@@ -95,65 +132,62 @@ class _MessagesScreenState extends State<MessagesScreen> {
     }
   }
 
-  Future<void> loadParentConversation() async {
+  Future<void> loadUserConversation() async {
     if (currentUserId.isEmpty) {
       conversations = [];
       messages = [];
       return;
     }
 
-    final conversationRef =
-        firestore.collection('parent_admin_chats').doc(currentUserId);
+    final conversationRef = firestore.collection(collectionName).doc(currentUserId);
 
     final conversationDoc = await conversationRef.get();
 
     if (!conversationDoc.exists) {
       await conversationRef.set({
-        'parentId': currentUserId,
-        'parentName': currentUserName,
+        'userId': currentUserId,
+        'userName': currentUserName,
+        'userRole': currentRole,
         'createdAt': FieldValue.serverTimestamp(),
         'lastMessage': '',
         'lastMessageAt': FieldValue.serverTimestamp(),
         'lastSenderId': '',
         'lastSenderName': '',
         'lastSenderRole': '',
-        'unreadByAdmin': false,
-        'unreadByParent': false,
+        unreadForAdminKey: false,
+        unreadForUserKey: false,
       });
     }
 
     selectedConversationId = currentUserId;
-    selectedParentId = currentUserId;
-    selectedParentName = currentUserName;
+    selectedReceiverId = currentUserId;
+    selectedReceiverName = currentUserName;
 
     await loadMessages(selectedConversationId);
 
     await conversationRef.update({
-      'unreadByParent': false,
+      unreadForUserKey: false,
     });
   }
 
-  Future<void> loadUserConversation() async {
-    await loadParentConversation();
-  }
-
   Future<void> loadAdminConversations() async {
-    final snapshot = await firestore.collection('parent_admin_chats').get();
+    final snapshot = await firestore.collection(collectionName).get();
 
     conversations = snapshot.docs.map((doc) {
       final data = doc.data();
 
       return {
         'id': doc.id,
-        'parentId': data['parentId'] ?? '',
-        'parentName': data['parentName'] ?? 'Parent',
+        'userId': data['userId'] ?? doc.id,
+        'userName': data['userName'] ?? userRoleLabel,
+        'userRole': data['userRole'] ?? userRoleLabel,
         'lastMessage': data['lastMessage'] ?? '',
         'lastMessageAt': data['lastMessageAt'],
         'lastSenderId': data['lastSenderId'] ?? '',
         'lastSenderName': data['lastSenderName'] ?? '',
         'lastSenderRole': data['lastSenderRole'] ?? '',
-        'unreadByAdmin': data['unreadByAdmin'] ?? false,
-        'unreadByParent': data['unreadByParent'] ?? false,
+        unreadForAdminKey: data[unreadForAdminKey] ?? false,
+        unreadForUserKey: data[unreadForUserKey] ?? false,
         'createdAt': data['createdAt'],
       };
     }).toList();
@@ -173,16 +207,13 @@ class _MessagesScreenState extends State<MessagesScreen> {
       final firstConversation = conversations.first;
 
       selectedConversationId = firstConversation['id'] ?? '';
-      selectedParentId = firstConversation['parentId'] ?? '';
-      selectedParentName = firstConversation['parentName'] ?? 'Parent';
+      selectedReceiverId = firstConversation['userId'] ?? '';
+      selectedReceiverName = firstConversation['userName'] ?? userRoleLabel;
 
       await loadMessages(selectedConversationId);
 
-      await firestore
-          .collection('parent_admin_chats')
-          .doc(selectedConversationId)
-          .update({
-        'unreadByAdmin': false,
+      await firestore.collection(collectionName).doc(selectedConversationId).update({
+        unreadForAdminKey: false,
       });
     }
   }
@@ -194,7 +225,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
     }
 
     final snapshot = await firestore
-        .collection('parent_admin_chats')
+        .collection(collectionName)
         .doc(conversationId)
         .collection('messages')
         .get();
@@ -232,7 +263,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
         await loadMessages(selectedConversationId);
       }
     } else {
-      await loadParentConversation();
+      await loadUserConversation();
     }
 
     if (!mounted) return;
@@ -250,15 +281,15 @@ class _MessagesScreenState extends State<MessagesScreen> {
 
     setState(() {
       selectedConversationId = conversationId;
-      selectedParentId = conversation['parentId'] ?? '';
-      selectedParentName = conversation['parentName'] ?? 'Parent';
+      selectedReceiverId = conversation['userId'] ?? '';
+      selectedReceiverName = conversation['userName'] ?? userRoleLabel;
       isLoading = true;
     });
 
     await loadMessages(conversationId);
 
-    await firestore.collection('parent_admin_chats').doc(conversationId).update({
-      'unreadByAdmin': false,
+    await firestore.collection(collectionName).doc(conversationId).update({
+      unreadForAdminKey: false,
     });
 
     if (!mounted) return;
@@ -281,12 +312,12 @@ class _MessagesScreenState extends State<MessagesScreen> {
     }
 
     if (selectedConversationId.isEmpty) {
-      if (isParent) {
+      if (!isAdmin) {
         selectedConversationId = currentUserId;
-        selectedParentId = currentUserId;
-        selectedParentName = currentUserName;
+        selectedReceiverId = currentUserId;
+        selectedReceiverName = currentUserName;
       } else {
-        showSnackBar('Please select a parent conversation');
+        showSnackBar('Please select a conversation');
         return;
       }
     }
@@ -297,7 +328,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
       });
 
       final conversationRef =
-          firestore.collection('parent_admin_chats').doc(selectedConversationId);
+          firestore.collection(collectionName).doc(selectedConversationId);
 
       final messageRef = conversationRef.collection('messages').doc();
 
@@ -314,19 +345,20 @@ class _MessagesScreenState extends State<MessagesScreen> {
       batch.set(
         conversationRef,
         {
-          'parentId': selectedParentId.isNotEmpty
-              ? selectedParentId
+          'userId': selectedReceiverId.isNotEmpty
+              ? selectedReceiverId
               : selectedConversationId,
-          'parentName': selectedParentName.isNotEmpty
-              ? selectedParentName
+          'userName': selectedReceiverName.isNotEmpty
+              ? selectedReceiverName
               : currentUserName,
+          'userRole': isTeacherChat ? 'Teacher' : 'Parent',
           'lastMessage': text,
           'lastMessageAt': FieldValue.serverTimestamp(),
           'lastSenderId': currentUserId,
           'lastSenderName': currentUserName,
           'lastSenderRole': currentRole,
-          'unreadByAdmin': isParent,
-          'unreadByParent': isAdmin,
+          unreadForAdminKey: !isAdmin,
+          unreadForUserKey: isAdmin,
           'updatedAt': FieldValue.serverTimestamp(),
         },
         SetOptions(merge: true),
@@ -355,19 +387,22 @@ class _MessagesScreenState extends State<MessagesScreen> {
   }
 
   Future<void> showStartChatSheet() async {
-    final parentsSnapshot = await firestore
+    final searchRole = isTeacherChat ? 'Teacher' : 'Parent';
+
+    final usersSnapshot = await firestore
         .collection('users')
-        .where('role', isEqualTo: 'Parent')
+        .where('role', isEqualTo: searchRole)
         .where('isActive', isEqualTo: true)
         .get();
 
-    final parents = parentsSnapshot.docs.map((doc) {
+    final users = usersSnapshot.docs.map((doc) {
       final data = doc.data();
 
       return {
         'id': doc.id,
-        'fullName': data['fullName'] ?? 'Parent',
+        'fullName': data['fullName'] ?? searchRole,
         'email': data['email'] ?? '',
+        'role': data['role'] ?? searchRole,
       };
     }).toList();
 
@@ -387,33 +422,33 @@ class _MessagesScreenState extends State<MessagesScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Text(
-                'Start Chat with Parent',
-                style: TextStyle(
+              Text(
+                'Start Chat with $searchRole',
+                style: const TextStyle(
                   fontSize: 22,
                   fontWeight: FontWeight.bold,
                   color: AppColors.textDark,
                 ),
               ),
               const SizedBox(height: 16),
-              if (parents.isEmpty)
-                const Padding(
-                  padding: EdgeInsets.all(20),
+              if (users.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.all(20),
                   child: Text(
-                    'No parent account found yet.',
-                    style: TextStyle(color: AppColors.textGrey),
+                    'No $searchRole account found yet.',
+                    style: const TextStyle(color: AppColors.textGrey),
                   ),
                 )
               else
                 Flexible(
                   child: ListView.separated(
                     shrinkWrap: true,
-                    itemCount: parents.length,
+                    itemCount: users.length,
                     separatorBuilder: (context, index) {
                       return const SizedBox(height: 10);
                     },
                     itemBuilder: (context, index) {
-                      final parent = parents[index];
+                      final user = users[index];
 
                       return ListTile(
                         shape: RoundedRectangleBorder(
@@ -427,14 +462,15 @@ class _MessagesScreenState extends State<MessagesScreen> {
                             color: AppColors.white,
                           ),
                         ),
-                        title: Text(parent['fullName'] ?? 'Parent'),
-                        subtitle: Text(parent['email'] ?? ''),
+                        title: Text(user['fullName'] ?? searchRole),
+                        subtitle: Text(user['email'] ?? ''),
                         onTap: () async {
                           Navigator.pop(context);
 
-                          await openParentConversation(
-                            parentId: parent['id'] ?? '',
-                            parentName: parent['fullName'] ?? 'Parent',
+                          await openUserConversation(
+                            userId: user['id'] ?? '',
+                            userName: user['fullName'] ?? searchRole,
+                            userRole: searchRole,
                           );
                         },
                       );
@@ -448,40 +484,41 @@ class _MessagesScreenState extends State<MessagesScreen> {
     );
   }
 
-  Future<void> openParentConversation({
-    required String parentId,
-    required String parentName,
+  Future<void> openUserConversation({
+    required String userId,
+    required String userName,
+    required String userRole,
   }) async {
-    if (parentId.isEmpty) {
-      showSnackBar('Invalid parent account');
+    if (userId.isEmpty) {
+      showSnackBar('Invalid account');
       return;
     }
 
-    final conversationRef =
-        firestore.collection('parent_admin_chats').doc(parentId);
+    final conversationRef = firestore.collection(collectionName).doc(userId);
 
     final conversationDoc = await conversationRef.get();
 
     if (!conversationDoc.exists) {
       await conversationRef.set({
-        'parentId': parentId,
-        'parentName': parentName,
+        'userId': userId,
+        'userName': userName,
+        'userRole': userRole,
         'createdAt': FieldValue.serverTimestamp(),
         'lastMessage': '',
         'lastMessageAt': FieldValue.serverTimestamp(),
         'lastSenderId': '',
         'lastSenderName': '',
         'lastSenderRole': '',
-        'unreadByAdmin': false,
-        'unreadByParent': false,
+        unreadForAdminKey: false,
+        unreadForUserKey: false,
       });
     }
 
-    selectedConversationId = parentId;
-    selectedParentId = parentId;
-    selectedParentName = parentName;
+    selectedConversationId = userId;
+    selectedReceiverId = userId;
+    selectedReceiverName = userName;
 
-    await loadMessages(parentId);
+    await loadMessages(userId);
     await loadAdminConversations();
 
     if (!mounted) return;
@@ -514,10 +551,10 @@ class _MessagesScreenState extends State<MessagesScreen> {
 
   Widget conversationTile(Map<String, dynamic> conversation) {
     final conversationId = conversation['id'] ?? '';
-    final parentName = conversation['parentName'] ?? 'Parent';
+    final userName = conversation['userName'] ?? userRoleLabel;
     final lastMessage = conversation['lastMessage'] ?? '';
     final lastMessageAt = conversation['lastMessageAt'];
-    final unreadByAdmin = conversation['unreadByAdmin'] == true;
+    final unreadByAdmin = conversation[unreadForAdminKey] == true;
     final isSelected = selectedConversationId == conversationId;
 
     return InkWell(
@@ -569,7 +606,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    parentName,
+                    userName,
                     style: const TextStyle(
                       color: AppColors.textDark,
                       fontWeight: FontWeight.bold,
@@ -680,10 +717,10 @@ class _MessagesScreenState extends State<MessagesScreen> {
           padding: const EdgeInsets.fromLTRB(18, 18, 18, 10),
           child: Row(
             children: [
-              const Expanded(
+              Expanded(
                 child: Text(
-                  'Parent Conversations',
-                  style: TextStyle(
+                  '$userRoleLabel Conversations',
+                  style: const TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
                     color: AppColors.textDark,
@@ -699,14 +736,14 @@ class _MessagesScreenState extends State<MessagesScreen> {
           ),
         ),
         if (conversations.isEmpty)
-          const Expanded(
+          Expanded(
             child: Center(
               child: Padding(
-                padding: EdgeInsets.all(24),
+                padding: const EdgeInsets.all(24),
                 child: Text(
-                  'No parent conversation yet. Tap Start to begin a chat.',
+                  'No $userRoleLabel conversation yet. Tap Start to begin a chat.',
                   textAlign: TextAlign.center,
-                  style: TextStyle(
+                  style: const TextStyle(
                     color: AppColors.textGrey,
                     height: 1.5,
                   ),
@@ -733,13 +770,13 @@ class _MessagesScreenState extends State<MessagesScreen> {
 
   Widget chatHeader() {
     final title = isAdmin
-        ? selectedParentName.isEmpty
-            ? 'Select Parent'
-            : selectedParentName
+        ? selectedReceiverName.isEmpty
+            ? 'Select $userRoleLabel'
+            : selectedReceiverName
         : 'School Admin';
 
     final subtitle = isAdmin
-        ? 'Admin ↔ Parent chat'
+        ? 'Admin ↔ $userRoleLabel chat'
         : 'Send messages to the school admin';
 
     return Container(
@@ -794,12 +831,12 @@ class _MessagesScreenState extends State<MessagesScreen> {
 
   Widget chatMessagesArea() {
     if (selectedConversationId.isEmpty && isAdmin) {
-      return const Expanded(
+      return Expanded(
         child: Center(
           child: Text(
-            'Select a parent conversation to view messages.',
+            'Select a $userRoleLabel conversation to view messages.',
             textAlign: TextAlign.center,
-            style: TextStyle(color: AppColors.textGrey),
+            style: const TextStyle(color: AppColors.textGrey),
           ),
         ),
       );
@@ -883,7 +920,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
     );
   }
 
-  Widget parentChatLayout() {
+  Widget userChatLayout() {
     return Column(
       children: [
         chatHeader(),
@@ -933,8 +970,8 @@ class _MessagesScreenState extends State<MessagesScreen> {
                     onPressed: () {
                       setState(() {
                         selectedConversationId = '';
-                        selectedParentId = '';
-                        selectedParentName = '';
+                        selectedReceiverId = '';
+                        selectedReceiverName = '';
                         messages = [];
                       });
                     },
@@ -975,9 +1012,10 @@ class _MessagesScreenState extends State<MessagesScreen> {
   Widget build(BuildContext context) {
     String title = 'Messages';
 
-    if (currentRole == 'Admin') title = 'Parent Messages';
+    if (currentRole == 'Admin' && isTeacherChat) title = 'Teacher Messages';
+    if (currentRole == 'Admin' && !isTeacherChat) title = 'Parent Messages';
     if (currentRole == 'Parent') title = 'Admin Chat';
-    if (currentRole == 'Teacher') title = 'Messages';
+    if (currentRole == 'Teacher') title = 'Admin Chat';
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -1011,7 +1049,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
                   )
                 : isAdmin
                     ? adminChatLayout()
-                    : parentChatLayout(),
+                    : userChatLayout(),
       ),
     );
   }

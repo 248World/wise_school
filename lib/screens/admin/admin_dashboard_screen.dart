@@ -34,7 +34,8 @@ class AdminDashboardScreen extends StatelessWidget {
       {'title': 'Student Results', 'icon': Icons.bar_chart_outlined},
       {'title': 'Assignments', 'icon': Icons.assignment_outlined},
       {'title': 'Fees', 'icon': Icons.payments_outlined},
-      {'title': 'Parent Messages', 'icon': Icons.message_outlined},
+      {'title': 'Parent Messages', 'icon': Icons.family_restroom_outlined},
+      {'title': 'Teacher Messages', 'icon': Icons.support_agent_outlined},
       {'title': 'Announcements', 'icon': Icons.campaign_outlined},
       {'title': 'Reports', 'icon': Icons.description_outlined},
     ];
@@ -60,7 +61,7 @@ class AdminDashboardScreen extends StatelessWidget {
               ),
               const SizedBox(height: 6),
               const Text(
-                'Manage school users, classes, assignments, fees, messages, results, reports, and AI insights.',
+                'Manage users, classes, fees, results, messages, reports, and AI insights.',
                 style: TextStyle(
                   fontSize: 14,
                   color: AppColors.textGrey,
@@ -81,19 +82,19 @@ class AdminDashboardScreen extends StatelessWidget {
                     icon: Icons.school_outlined,
                   ),
                   DashboardCard(
-                    title: 'Assignments',
-                    value: 'Live',
-                    icon: Icons.assignment_outlined,
-                  ),
-                  DashboardCard(
                     title: 'Fees',
                     value: 'Live',
                     icon: Icons.payments_outlined,
                   ),
                   DashboardCard(
-                    title: 'Messages',
+                    title: 'Parent Chat',
                     value: 'Live',
-                    icon: Icons.message_outlined,
+                    icon: Icons.family_restroom_outlined,
+                  ),
+                  DashboardCard(
+                    title: 'Teacher Chat',
+                    value: 'Live',
+                    icon: Icons.support_agent_outlined,
                   ),
                 ],
               ),
@@ -176,7 +177,22 @@ class AdminDashboardScreen extends StatelessWidget {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (_) => const MessagesScreen(role: 'Admin'),
+                            builder: (_) => const MessagesScreen(
+                              role: 'Admin',
+                              targetRole: 'Parent',
+                            ),
+                          ),
+                        );
+                      }
+
+                      if (title == 'Teacher Messages') {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const MessagesScreen(
+                              role: 'Admin',
+                              targetRole: 'Teacher',
+                            ),
                           ),
                         );
                       }
@@ -366,7 +382,10 @@ class AdminDashboardScreen extends StatelessWidget {
             Navigator.push(
               context,
               MaterialPageRoute(
-                builder: (_) => const MessagesScreen(role: 'Admin'),
+                builder: (_) => const MessagesScreen(
+                  role: 'Admin',
+                  targetRole: 'Parent',
+                ),
               ),
             );
           }
@@ -395,7 +414,7 @@ class AdminDashboardScreen extends StatelessWidget {
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.message_outlined),
-            label: 'Messages',
+            label: 'Parent Chat',
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.person_outline),

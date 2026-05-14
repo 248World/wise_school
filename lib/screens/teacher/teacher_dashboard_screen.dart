@@ -4,10 +4,8 @@ import '../../core/constants/app_colors.dart';
 import '../../widgets/dashboard_card.dart';
 import '../../widgets/module_card.dart';
 import '../../widgets/section_title.dart';
-import '../ai/ai_assistant_screen.dart';
 import '../common/messages_screen.dart';
 import '../common/profile_screen.dart';
-import '../student/results_screen.dart';
 import 'add_marks_screen.dart';
 import 'assignments_screen.dart';
 import 'attendance_screen.dart';
@@ -24,13 +22,30 @@ class TeacherDashboardScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final modules = [
-      {'title': 'My Classes', 'icon': Icons.class_outlined},
-      {'title': 'Attendance', 'icon': Icons.fact_check_outlined},
-      {'title': 'Add Marks', 'icon': Icons.edit_note_outlined},
-      {'title': 'Results', 'icon': Icons.bar_chart_outlined},
-      {'title': 'Assignments', 'icon': Icons.assignment_outlined},
-      {'title': 'Messages', 'icon': Icons.message_outlined},
-      {'title': 'AI Teaching Assistant', 'icon': Icons.smart_toy_outlined},
+      {
+        'title': 'My Classes',
+        'icon': Icons.class_outlined,
+      },
+      {
+        'title': 'Attendance',
+        'icon': Icons.fact_check_outlined,
+      },
+      {
+        'title': 'Add Marks',
+        'icon': Icons.edit_note_outlined,
+      },
+      {
+        'title': 'Assignments',
+        'icon': Icons.assignment_outlined,
+      },
+      {
+        'title': 'Admin Chat',
+        'icon': Icons.message_outlined,
+      },
+      {
+        'title': 'Profile',
+        'icon': Icons.person_outline,
+      },
     ];
 
     return Scaffold(
@@ -54,7 +69,7 @@ class TeacherDashboardScreen extends StatelessWidget {
               ),
               const SizedBox(height: 6),
               const Text(
-                'Manage classes, attendance, marks, results, and assignments.',
+                'Manage your classes, attendance, marks, assignments, and messages.',
                 style: TextStyle(
                   fontSize: 14,
                   color: AppColors.textGrey,
@@ -80,19 +95,19 @@ class TeacherDashboardScreen extends StatelessWidget {
                     icon: Icons.fact_check_outlined,
                   ),
                   DashboardCard(
-                    title: 'Marks',
-                    value: 'Live',
-                    icon: Icons.grade_outlined,
-                  ),
-                  DashboardCard(
                     title: 'Assignments',
                     value: 'Live',
                     icon: Icons.assignment_outlined,
                   ),
+                  DashboardCard(
+                    title: 'Admin Chat',
+                    value: 'Live',
+                    icon: Icons.message_outlined,
+                  ),
                 ],
               ),
               const SizedBox(height: 26),
-              const SectionTitle(title: 'Teaching Modules'),
+              const SectionTitle(title: 'Teacher Modules'),
               const SizedBox(height: 14),
               GridView.builder(
                 itemCount: modules.length,
@@ -141,15 +156,6 @@ class TeacherDashboardScreen extends StatelessWidget {
                         );
                       }
 
-                      if (title == 'Results') {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const ResultsScreen(),
-                          ),
-                        );
-                      }
-
                       if (title == 'Assignments') {
                         Navigator.push(
                           context,
@@ -160,21 +166,24 @@ class TeacherDashboardScreen extends StatelessWidget {
                         );
                       }
 
-                      if (title == 'Messages') {
+                      if (title == 'Admin Chat') {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (_) =>
-                                const MessagesScreen(role: 'Teacher'),
+                            builder: (_) => const MessagesScreen(
+                              role: 'Teacher',
+                              targetRole: 'Admin',
+                            ),
                           ),
                         );
                       }
 
-                      if (title == 'AI Teaching Assistant') {
+                      if (title == 'Profile') {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (_) => const AIAssistantScreen(),
+                            builder: (_) =>
+                                const ProfileScreen(role: 'Teacher'),
                           ),
                         );
                       }
@@ -193,7 +202,9 @@ class TeacherDashboardScreen extends StatelessWidget {
         unselectedItemColor: AppColors.textGrey,
         type: BottomNavigationBarType.fixed,
         onTap: (index) {
-          if (index == 0) return;
+          if (index == 0) {
+            return;
+          }
 
           if (index == 1) {
             Navigator.push(
@@ -210,7 +221,7 @@ class TeacherDashboardScreen extends StatelessWidget {
             Navigator.push(
               context,
               MaterialPageRoute(
-                builder: (_) => const AttendanceScreen(role: 'Teacher'),
+                builder: (_) => const AssignmentsScreen(role: 'Teacher'),
               ),
             );
           }
@@ -219,7 +230,10 @@ class TeacherDashboardScreen extends StatelessWidget {
             Navigator.push(
               context,
               MaterialPageRoute(
-                builder: (_) => const AssignmentsScreen(role: 'Teacher'),
+                builder: (_) => const MessagesScreen(
+                  role: 'Teacher',
+                  targetRole: 'Admin',
+                ),
               ),
             );
           }
@@ -243,12 +257,12 @@ class TeacherDashboardScreen extends StatelessWidget {
             label: 'Classes',
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.fact_check_outlined),
-            label: 'Attendance',
-          ),
-          BottomNavigationBarItem(
             icon: Icon(Icons.assignment_outlined),
             label: 'Tasks',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.message_outlined),
+            label: 'Chat',
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.person_outline),
