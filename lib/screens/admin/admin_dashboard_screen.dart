@@ -8,6 +8,7 @@ import '../ai/ai_assistant_screen.dart';
 import '../ai/ai_performance_analysis_screen.dart';
 import '../ai/ai_report_generator_screen.dart';
 import '../common/announcements_screen.dart';
+import '../common/messages_screen.dart';
 import '../common/profile_screen.dart';
 import '../parent/fees_screen.dart';
 import '../student/results_screen.dart';
@@ -33,6 +34,7 @@ class AdminDashboardScreen extends StatelessWidget {
       {'title': 'Student Results', 'icon': Icons.bar_chart_outlined},
       {'title': 'Assignments', 'icon': Icons.assignment_outlined},
       {'title': 'Fees', 'icon': Icons.payments_outlined},
+      {'title': 'Parent Messages', 'icon': Icons.message_outlined},
       {'title': 'Announcements', 'icon': Icons.campaign_outlined},
       {'title': 'Reports', 'icon': Icons.description_outlined},
     ];
@@ -58,7 +60,7 @@ class AdminDashboardScreen extends StatelessWidget {
               ),
               const SizedBox(height: 6),
               const Text(
-                'Manage school users, classes, assignments, fees, results, reports, and AI insights.',
+                'Manage school users, classes, assignments, fees, messages, results, reports, and AI insights.',
                 style: TextStyle(
                   fontSize: 14,
                   color: AppColors.textGrey,
@@ -89,9 +91,9 @@ class AdminDashboardScreen extends StatelessWidget {
                     icon: Icons.payments_outlined,
                   ),
                   DashboardCard(
-                    title: 'Results',
+                    title: 'Messages',
                     value: 'Live',
-                    icon: Icons.bar_chart_outlined,
+                    icon: Icons.message_outlined,
                   ),
                 ],
               ),
@@ -166,6 +168,15 @@ class AdminDashboardScreen extends StatelessWidget {
                           context,
                           MaterialPageRoute(
                             builder: (_) => const FeesScreen(role: 'Admin'),
+                          ),
+                        );
+                      }
+
+                      if (title == 'Parent Messages') {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const MessagesScreen(role: 'Admin'),
                           ),
                         );
                       }
@@ -355,7 +366,7 @@ class AdminDashboardScreen extends StatelessWidget {
             Navigator.push(
               context,
               MaterialPageRoute(
-                builder: (_) => const ResultsScreen(),
+                builder: (_) => const MessagesScreen(role: 'Admin'),
               ),
             );
           }
@@ -383,8 +394,8 @@ class AdminDashboardScreen extends StatelessWidget {
             label: 'Fees',
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.bar_chart_outlined),
-            label: 'Results',
+            icon: Icon(Icons.message_outlined),
+            label: 'Messages',
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.person_outline),
