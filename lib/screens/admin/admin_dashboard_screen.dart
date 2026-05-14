@@ -58,7 +58,7 @@ class AdminDashboardScreen extends StatelessWidget {
               ),
               const SizedBox(height: 6),
               const Text(
-                'Manage school users, classes, assignments, results, reports, and AI insights.',
+                'Manage school users, classes, assignments, fees, results, reports, and AI insights.',
                 style: TextStyle(
                   fontSize: 14,
                   color: AppColors.textGrey,
@@ -79,14 +79,14 @@ class AdminDashboardScreen extends StatelessWidget {
                     icon: Icons.school_outlined,
                   ),
                   DashboardCard(
-                    title: 'Teachers',
-                    value: 'Live',
-                    icon: Icons.person_outline,
-                  ),
-                  DashboardCard(
                     title: 'Assignments',
                     value: 'Live',
                     icon: Icons.assignment_outlined,
+                  ),
+                  DashboardCard(
+                    title: 'Fees',
+                    value: 'Live',
+                    icon: Icons.payments_outlined,
                   ),
                   DashboardCard(
                     title: 'Results',
@@ -165,7 +165,7 @@ class AdminDashboardScreen extends StatelessWidget {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (_) => const FeesScreen(),
+                            builder: (_) => const FeesScreen(role: 'Admin'),
                           ),
                         );
                       }
@@ -266,7 +266,7 @@ class AdminDashboardScreen extends StatelessWidget {
                       SizedBox(width: 14),
                       Expanded(
                         child: Text(
-                          'AI Report Generator: Create school, class, attendance, assignment, and performance reports.',
+                          'AI Report Generator: Create school, class, attendance, assignment, fee, and performance reports.',
                           style: TextStyle(
                             fontWeight: FontWeight.w600,
                             color: AppColors.textDark,
@@ -346,7 +346,7 @@ class AdminDashboardScreen extends StatelessWidget {
             Navigator.push(
               context,
               MaterialPageRoute(
-                builder: (_) => const AssignmentsScreen(role: 'Admin'),
+                builder: (_) => const FeesScreen(role: 'Admin'),
               ),
             );
           }
@@ -379,8 +379,8 @@ class AdminDashboardScreen extends StatelessWidget {
             label: 'Users',
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.assignment_outlined),
-            label: 'Tasks',
+            icon: Icon(Icons.payments_outlined),
+            label: 'Fees',
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.bar_chart_outlined),

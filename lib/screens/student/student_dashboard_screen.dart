@@ -4,10 +4,10 @@ import '../../core/constants/app_colors.dart';
 import '../../widgets/dashboard_card.dart';
 import '../../widgets/module_card.dart';
 import '../../widgets/section_title.dart';
-import '../ai/ai_assistant_screen.dart';
 import '../ai/ai_study_assistant_screen.dart';
 import '../common/announcements_screen.dart';
 import '../common/profile_screen.dart';
+import '../parent/fees_screen.dart';
 import '../teacher/assignments_screen.dart';
 import '../teacher/attendance_screen.dart';
 import 'results_screen.dart';
@@ -24,12 +24,34 @@ class StudentDashboardScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final modules = [
-      {'title': 'Profile', 'icon': Icons.person_outline},
-      {'title': 'Timetable', 'icon': Icons.calendar_month_outlined},
-      {'title': 'Results', 'icon': Icons.bar_chart_outlined},
-      {'title': 'Attendance', 'icon': Icons.fact_check_outlined},
-      {'title': 'Assignments', 'icon': Icons.assignment_outlined},
-      {'title': 'AI Study Assistant', 'icon': Icons.smart_toy_outlined},
+      {
+        'title': 'Profile',
+        'icon': Icons.person_outline,
+      },
+      {
+        'title': 'Timetable',
+        'icon': Icons.calendar_month_outlined,
+      },
+      {
+        'title': 'Results',
+        'icon': Icons.bar_chart_outlined,
+      },
+      {
+        'title': 'Attendance',
+        'icon': Icons.fact_check_outlined,
+      },
+      {
+        'title': 'Assignments',
+        'icon': Icons.assignment_outlined,
+      },
+      {
+        'title': 'Fees',
+        'icon': Icons.payments_outlined,
+      },
+      {
+        'title': 'AI Study Assistant',
+        'icon': Icons.smart_toy_outlined,
+      },
     ];
 
     return Scaffold(
@@ -51,15 +73,19 @@ class StudentDashboardScreen extends StatelessWidget {
                   color: AppColors.textDark,
                 ),
               ),
+
               const SizedBox(height: 6),
+
               const Text(
-                'View your results, attendance, assignments, and study support.',
+                'View your results, attendance, assignments, fees, and study support.',
                 style: TextStyle(
                   fontSize: 14,
                   color: AppColors.textGrey,
                 ),
               ),
+
               const SizedBox(height: 22),
+
               GridView.count(
                 crossAxisCount: 2,
                 shrinkWrap: true,
@@ -84,15 +110,19 @@ class StudentDashboardScreen extends StatelessWidget {
                     icon: Icons.assignment_outlined,
                   ),
                   DashboardCard(
-                    title: 'New Notices',
+                    title: 'Fees',
                     value: 'Live',
-                    icon: Icons.notifications_outlined,
+                    icon: Icons.payments_outlined,
                   ),
                 ],
               ),
+
               const SizedBox(height: 26),
+
               const SectionTitle(title: 'Student Modules'),
+
               const SizedBox(height: 14),
+
               GridView.builder(
                 itemCount: modules.length,
                 shrinkWrap: true,
@@ -114,7 +144,8 @@ class StudentDashboardScreen extends StatelessWidget {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (_) => const ProfileScreen(role: 'Student'),
+                            builder: (_) =>
+                                const ProfileScreen(role: 'Student'),
                           ),
                         );
                       }
@@ -157,6 +188,16 @@ class StudentDashboardScreen extends StatelessWidget {
                         );
                       }
 
+                      if (title == 'Fees') {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) =>
+                                const FeesScreen(role: 'Student'),
+                          ),
+                        );
+                      }
+
                       if (title == 'AI Study Assistant') {
                         Navigator.push(
                           context,
@@ -169,18 +210,22 @@ class StudentDashboardScreen extends StatelessWidget {
                   );
                 },
               ),
+
               const SizedBox(height: 20),
             ],
           ),
         ),
       ),
+
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: 0,
         selectedItemColor: AppColors.primaryBlue,
         unselectedItemColor: AppColors.textGrey,
         type: BottomNavigationBarType.fixed,
         onTap: (index) {
-          if (index == 0) return;
+          if (index == 0) {
+            return;
+          }
 
           if (index == 1) {
             Navigator.push(

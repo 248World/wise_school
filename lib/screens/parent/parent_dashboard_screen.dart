@@ -54,7 +54,7 @@ class ParentDashboardScreen extends StatelessWidget {
               ),
               const SizedBox(height: 6),
               const Text(
-                'Follow your child attendance, assignments, results, fees, and messages.',
+                'Follow your child attendance, assignments, fees, results, and messages.',
                 style: TextStyle(
                   fontSize: 14,
                   color: AppColors.textGrey,
@@ -70,7 +70,7 @@ class ParentDashboardScreen extends StatelessWidget {
                 childAspectRatio: 1.45,
                 children: const [
                   DashboardCard(
-                    title: 'Child Attendance',
+                    title: 'Attendance',
                     value: 'Live',
                     icon: Icons.fact_check_outlined,
                   ),
@@ -80,14 +80,14 @@ class ParentDashboardScreen extends StatelessWidget {
                     icon: Icons.assignment_outlined,
                   ),
                   DashboardCard(
+                    title: 'Fees',
+                    value: 'Live',
+                    icon: Icons.payments_outlined,
+                  ),
+                  DashboardCard(
                     title: 'Results',
                     value: 'Live',
                     icon: Icons.bar_chart_outlined,
-                  ),
-                  DashboardCard(
-                    title: 'Messages',
-                    value: 'Live',
-                    icon: Icons.message_outlined,
                   ),
                 ],
               ),
@@ -144,7 +144,7 @@ class ParentDashboardScreen extends StatelessWidget {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (_) => const FeesScreen(),
+                            builder: (_) => const FeesScreen(role: 'Parent'),
                           ),
                         );
                       }
@@ -206,7 +206,7 @@ class ParentDashboardScreen extends StatelessWidget {
             Navigator.push(
               context,
               MaterialPageRoute(
-                builder: (_) => const AssignmentsScreen(role: 'Parent'),
+                builder: (_) => const FeesScreen(role: 'Parent'),
               ),
             );
           }
@@ -239,8 +239,8 @@ class ParentDashboardScreen extends StatelessWidget {
             label: 'Child',
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.assignment_outlined),
-            label: 'Tasks',
+            icon: Icon(Icons.payments_outlined),
+            label: 'Fees',
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.bar_chart_outlined),
