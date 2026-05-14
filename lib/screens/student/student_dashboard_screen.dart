@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
+
 import '../../core/constants/app_colors.dart';
 import '../../widgets/dashboard_card.dart';
 import '../../widgets/module_card.dart';
 import '../../widgets/section_title.dart';
 import '../ai/ai_assistant_screen.dart';
 import '../ai/ai_study_assistant_screen.dart';
-import '../common/profile_screen.dart';
 import '../common/announcements_screen.dart';
+import '../common/profile_screen.dart';
 import '../teacher/assignments_screen.dart';
 import '../teacher/attendance_screen.dart';
 import 'results_screen.dart';
@@ -59,7 +60,6 @@ class StudentDashboardScreen extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 22),
-
               GridView.count(
                 crossAxisCount: 2,
                 shrinkWrap: true,
@@ -70,33 +70,29 @@ class StudentDashboardScreen extends StatelessWidget {
                 children: const [
                   DashboardCard(
                     title: 'Attendance',
-                    value: '89%',
+                    value: 'Live',
                     icon: Icons.fact_check_outlined,
                   ),
                   DashboardCard(
                     title: 'Average Result',
-                    value: '14.5',
+                    value: 'Live',
                     icon: Icons.bar_chart_outlined,
                   ),
                   DashboardCard(
                     title: 'Assignments',
-                    value: '03',
+                    value: 'Live',
                     icon: Icons.assignment_outlined,
                   ),
                   DashboardCard(
                     title: 'New Notices',
-                    value: '04',
+                    value: 'Live',
                     icon: Icons.notifications_outlined,
                   ),
                 ],
               ),
-
               const SizedBox(height: 26),
-
               const SectionTitle(title: 'Student Modules'),
-
               const SizedBox(height: 14),
-
               GridView.builder(
                 itemCount: modules.length,
                 shrinkWrap: true,
@@ -173,7 +169,6 @@ class StudentDashboardScreen extends StatelessWidget {
                   );
                 },
               ),
-
               const SizedBox(height: 20),
             ],
           ),
@@ -185,9 +180,7 @@ class StudentDashboardScreen extends StatelessWidget {
         unselectedItemColor: AppColors.textGrey,
         type: BottomNavigationBarType.fixed,
         onTap: (index) {
-          if (index == 0) {
-            return;
-          }
+          if (index == 0) return;
 
           if (index == 1) {
             Navigator.push(
@@ -202,7 +195,7 @@ class StudentDashboardScreen extends StatelessWidget {
             Navigator.push(
               context,
               MaterialPageRoute(
-                builder: (_) => const AIAssistantScreen(),
+                builder: (_) => const AssignmentsScreen(role: 'Student'),
               ),
             );
           }
@@ -235,8 +228,8 @@ class StudentDashboardScreen extends StatelessWidget {
             label: 'Results',
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.smart_toy_outlined),
-            label: 'AI',
+            icon: Icon(Icons.assignment_outlined),
+            label: 'Tasks',
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.campaign_outlined),

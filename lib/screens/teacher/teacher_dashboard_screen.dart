@@ -61,7 +61,6 @@ class TeacherDashboardScreen extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 22),
-
               GridView.count(
                 crossAxisCount: 2,
                 shrinkWrap: true,
@@ -86,19 +85,15 @@ class TeacherDashboardScreen extends StatelessWidget {
                     icon: Icons.grade_outlined,
                   ),
                   DashboardCard(
-                    title: 'Results',
+                    title: 'Assignments',
                     value: 'Live',
-                    icon: Icons.bar_chart_outlined,
+                    icon: Icons.assignment_outlined,
                   ),
                 ],
               ),
-
               const SizedBox(height: 26),
-
               const SectionTitle(title: 'Teaching Modules'),
-
               const SizedBox(height: 14),
-
               GridView.builder(
                 itemCount: modules.length,
                 shrinkWrap: true,
@@ -187,22 +182,18 @@ class TeacherDashboardScreen extends StatelessWidget {
                   );
                 },
               ),
-
               const SizedBox(height: 20),
             ],
           ),
         ),
       ),
-
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: 0,
         selectedItemColor: AppColors.primaryBlue,
         unselectedItemColor: AppColors.textGrey,
         type: BottomNavigationBarType.fixed,
         onTap: (index) {
-          if (index == 0) {
-            return;
-          }
+          if (index == 0) return;
 
           if (index == 1) {
             Navigator.push(
@@ -228,7 +219,7 @@ class TeacherDashboardScreen extends StatelessWidget {
             Navigator.push(
               context,
               MaterialPageRoute(
-                builder: (_) => const ResultsScreen(),
+                builder: (_) => const AssignmentsScreen(role: 'Teacher'),
               ),
             );
           }
@@ -256,8 +247,8 @@ class TeacherDashboardScreen extends StatelessWidget {
             label: 'Attendance',
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.bar_chart_outlined),
-            label: 'Results',
+            icon: Icon(Icons.assignment_outlined),
+            label: 'Tasks',
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.person_outline),

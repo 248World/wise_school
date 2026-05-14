@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 
 import '../../core/constants/app_colors.dart';
 import '../../providers/auth_provider.dart';
+import '../student/assignment_submit_screen.dart';
 
 class AssignmentsScreen extends StatefulWidget {
   final String role;
@@ -26,26 +27,35 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
 
   List<Map<String, dynamic>> assignments = [];
   List<Map<String, dynamic>> classes = [];
-  List<Map<String, dynamic>> subjects = [];
+  List<Map<String, dynamic>> submissions = [];
+  List<Map<String, dynamic>> parentChildren = [];
 
-  String selectedClassId = '';
-  String selectedClassName = '';
-  String selectedSubjectId = '';
-  String selectedSubjectName = '';
-
-  DateTime selectedDueDate = DateTime.now().add(const Duration(days: 7));
+  String currentRole = 'Student';
+  String currentUserId = '';
+  String currentUserName = '';
 
   final titleController = TextEditingController();
   final descriptionController = TextEditingController();
 
   bool get canCreateAssignment {
-    return widget.role == 'Teacher' || widget.role == 'Admin';
+    return currentRole == 'Teacher' || currentRole == 'Admin';
+  }
+
+  bool get isStudent {
+    return currentRole == 'Student';
+  }
+
+  bool get isParent {
+    return currentRole == 'Parent';
   }
 
   @override
   void initState() {
     super.initState();
-    loadInitialData();
+
+    Future.microtask(() {
+      loadInitialData();
+    });
   }
 
   @override
@@ -57,22 +67,26 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
 
   Future<void> loadInitialData() async {
     try {
+      final authProvider = context.read<AuthProvider>();
+
+      currentRole = authProvider.role ?? widget.role;
+      currentUserId = authProvider.userId ?? '';
+      currentUserName = authProvider.fullName ?? currentRole;
+
       setState(() {
         isLoading = true;
         errorMessage = null;
       });
 
-      final authProvider = context.read<AuthProvider>();
-      final currentRole = authProvider.role ?? widget.role;
-      final currentUserId = authProvider.userId ?? '';
-
       if (currentRole == 'Student') {
-        await loadStudentAssignments(currentUserId);
+        await loadStudentAssignments();
       } else if (currentRole == 'Parent') {
-        await loadParentAssignments(currentUserId);
+        await loadParentAssignments();
       } else {
-        await loadClassesAndAssignments();
+        await loadAdminTeacherAssignments();
       }
+
+      await loadSubmissions();
 
       if (!mounted) return;
 
@@ -89,10 +103,10 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
     }
   }
 
-  Future<void> loadClassesAndAssignments() async {
+  Future<void> loadAdminTeacherAssignments() async {
     final classesSnapshot = await firestore.collection('classes').get();
 
-    final loadedClasses = classesSnapshot.docs.map((doc) {
+    classes = classesSnapshot.docs.map((doc) {
       final data = doc.data();
 
       return {
@@ -106,7 +120,7 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
 
     final assignmentsSnapshot = await firestore.collection('assignments').get();
 
-    final loadedAssignments = assignmentsSnapshot.docs.map((doc) {
+    assignments = assignmentsSnapshot.docs.map((doc) {
       final data = doc.data();
 
       return {
@@ -124,23 +138,11 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
       };
     }).toList();
 
-    loadedAssignments.sort((a, b) {
-      final aCreated = a['createdAt'];
-      final bCreated = b['createdAt'];
-
-      if (aCreated is Timestamp && bCreated is Timestamp) {
-        return bCreated.compareTo(aCreated);
-      }
-
-      return 0;
-    });
-
-    classes = loadedClasses;
-    assignments = loadedAssignments;
+    sortAssignments();
   }
 
-  Future<void> loadStudentAssignments(String userId) async {
-    final userDoc = await firestore.collection('users').doc(userId).get();
+  Future<void> loadStudentAssignments() async {
+    final userDoc = await firestore.collection('users').doc(currentUserId).get();
 
     if (!userDoc.exists) {
       assignments = [];
@@ -160,7 +162,7 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
         .where('classId', isEqualTo: classId)
         .get();
 
-    final loadedAssignments = assignmentsSnapshot.docs.map((doc) {
+    assignments = assignmentsSnapshot.docs.map((doc) {
       final data = doc.data();
 
       return {
@@ -178,30 +180,30 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
       };
     }).toList();
 
-    loadedAssignments.sort((a, b) {
-      final aCreated = a['createdAt'];
-      final bCreated = b['createdAt'];
-
-      if (aCreated is Timestamp && bCreated is Timestamp) {
-        return bCreated.compareTo(aCreated);
-      }
-
-      return 0;
-    });
-
-    assignments = loadedAssignments;
+    sortAssignments();
   }
 
-  Future<void> loadParentAssignments(String parentId) async {
+  Future<void> loadParentAssignments() async {
     final childrenSnapshot = await firestore
         .collection('users')
         .where('role', isEqualTo: 'Student')
-        .where('parentId', isEqualTo: parentId)
+        .where('parentId', isEqualTo: currentUserId)
         .where('isActive', isEqualTo: true)
         .get();
 
-    final classIds = childrenSnapshot.docs
-        .map((doc) => doc.data()['classId'] ?? '')
+    parentChildren = childrenSnapshot.docs.map((doc) {
+      final data = doc.data();
+
+      return {
+        'id': doc.id,
+        'fullName': data['fullName'] ?? '',
+        'classId': data['classId'] ?? '',
+        'className': data['className'] ?? '',
+      };
+    }).toList();
+
+    final classIds = parentChildren
+        .map((child) => child['classId'] ?? '')
         .where((classId) => classId.toString().isNotEmpty)
         .toSet()
         .toList();
@@ -238,7 +240,66 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
       }
     }
 
-    loadedAssignments.sort((a, b) {
+    assignments = loadedAssignments;
+    sortAssignments();
+  }
+
+  Future<void> loadSubmissions() async {
+    if (currentRole == 'Student') {
+      final snapshot = await firestore
+          .collection('assignment_submissions')
+          .where('studentId', isEqualTo: currentUserId)
+          .get();
+
+      submissions = snapshot.docs.map((doc) {
+        final data = doc.data();
+
+        return {
+          'id': doc.id,
+          ...data,
+        };
+      }).toList();
+
+      return;
+    }
+
+    if (currentRole == 'Parent') {
+      final childIds = parentChildren.map((child) => child['id']).toList();
+
+      final loadedSubmissions = <Map<String, dynamic>>[];
+
+      for (final childId in childIds) {
+        final snapshot = await firestore
+            .collection('assignment_submissions')
+            .where('studentId', isEqualTo: childId)
+            .get();
+
+        for (final doc in snapshot.docs) {
+          loadedSubmissions.add({
+            'id': doc.id,
+            ...doc.data(),
+          });
+        }
+      }
+
+      submissions = loadedSubmissions;
+      return;
+    }
+
+    final snapshot = await firestore.collection('assignment_submissions').get();
+
+    submissions = snapshot.docs.map((doc) {
+      final data = doc.data();
+
+      return {
+        'id': doc.id,
+        ...data,
+      };
+    }).toList();
+  }
+
+  void sortAssignments() {
+    assignments.sort((a, b) {
       final aCreated = a['createdAt'];
       final bCreated = b['createdAt'];
 
@@ -248,17 +309,75 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
 
       return 0;
     });
-
-    assignments = loadedAssignments;
   }
 
-  Future<void> loadSubjectsByClass(String classId) async {
+  Map<String, dynamic>? getStudentSubmission(String assignmentId) {
+    try {
+      return submissions.firstWhere(
+        (submission) {
+          return submission['assignmentId'] == assignmentId &&
+              submission['studentId'] == currentUserId;
+        },
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
+  List<Map<String, dynamic>> getAssignmentSubmissions(String assignmentId) {
+    return submissions.where((submission) {
+      return submission['assignmentId'] == assignmentId;
+    }).toList();
+  }
+
+  List<Map<String, dynamic>> getParentChildrenForAssignment(
+    Map<String, dynamic> assignment,
+  ) {
+    final assignmentClassId = assignment['classId'] ?? '';
+
+    return parentChildren.where((child) {
+      return child['classId'] == assignmentClassId;
+    }).toList();
+  }
+
+  List<Map<String, dynamic>> getParentSubmissionsForAssignment(
+    String assignmentId,
+  ) {
+    return submissions.where((submission) {
+      return submission['assignmentId'] == assignmentId;
+    }).toList();
+  }
+
+  Future<List<Map<String, dynamic>>> getStudentsForAssignmentClass(
+    String classId,
+  ) async {
+    final studentsSnapshot = await firestore
+        .collection('users')
+        .where('role', isEqualTo: 'Student')
+        .where('classId', isEqualTo: classId)
+        .where('isActive', isEqualTo: true)
+        .get();
+
+    return studentsSnapshot.docs.map((doc) {
+      final data = doc.data();
+
+      return {
+        'id': doc.id,
+        'fullName': data['fullName'] ?? '',
+        'email': data['email'] ?? '',
+        'classId': data['classId'] ?? '',
+        'className': data['className'] ?? '',
+      };
+    }).toList();
+  }
+
+  Future<List<Map<String, dynamic>>> loadSubjectsByClass(String classId) async {
     final subjectsSnapshot = await firestore
         .collection('subjects')
         .where('classId', isEqualTo: classId)
         .get();
 
-    final loadedSubjects = subjectsSnapshot.docs.map((doc) {
+    return subjectsSnapshot.docs.map((doc) {
       final data = doc.data();
 
       return {
@@ -270,107 +389,51 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
         'teacherName': data['teacherName'] ?? '',
       };
     }).toList();
-
-    if (!mounted) return;
-
-    setState(() {
-      subjects = loadedSubjects;
-      selectedSubjectId = '';
-      selectedSubjectName = '';
-    });
   }
 
-  void selectClass(String? value, void Function(void Function()) setModalState) {
-    if (value == null) return;
-
-    final selectedClass = classes.firstWhere(
-      (schoolClass) => schoolClass['id'] == value,
-      orElse: () => {},
-    );
-
-    setModalState(() {
-      selectedClassId = value;
-      selectedClassName = selectedClass['className'] ?? '';
-      subjects = [];
-      selectedSubjectId = '';
-      selectedSubjectName = '';
-    });
-
-    loadSubjectsByClass(value);
-  }
-
-  void selectSubject(
-    String? value,
-    void Function(void Function()) setModalState,
-  ) {
-    if (value == null) return;
-
-    final selectedSubject = subjects.firstWhere(
-      (subject) => subject['id'] == value,
-      orElse: () => {},
-    );
-
-    setModalState(() {
-      selectedSubjectId = value;
-      selectedSubjectName = selectedSubject['subjectName'] ?? '';
-    });
-  }
-
-  Future<void> pickDueDate(
-    BuildContext modalContext,
-    void Function(void Function()) setModalState,
-  ) async {
+  Future<void> pickDueDate({
+    required BuildContext modalContext,
+    required DateTime currentDate,
+    required void Function(DateTime date) onPicked,
+  }) async {
     final pickedDate = await showDatePicker(
       context: modalContext,
-      initialDate: selectedDueDate,
+      initialDate: currentDate,
       firstDate: DateTime.now(),
       lastDate: DateTime.now().add(const Duration(days: 365)),
     );
 
     if (pickedDate == null) return;
 
-    setModalState(() {
-      selectedDueDate = pickedDate;
-    });
+    onPicked(pickedDate);
   }
 
-  Future<void> saveAssignment() async {
-    final title = titleController.text.trim();
-    final description = descriptionController.text.trim();
-
+  Future<void> saveAssignment({
+    required String title,
+    required String description,
+    required String classId,
+    required String className,
+    required String subjectId,
+    required String subjectName,
+    required DateTime dueDate,
+  }) async {
     if (title.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please enter assignment title'),
-        ),
-      );
+      showSnackBar('Please enter assignment title');
       return;
     }
 
     if (description.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please enter assignment description'),
-        ),
-      );
+      showSnackBar('Please enter assignment description');
       return;
     }
 
-    if (selectedClassId.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please select a class'),
-        ),
-      );
+    if (classId.isEmpty) {
+      showSnackBar('Please select a class');
       return;
     }
 
-    if (selectedSubjectId.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please select a subject'),
-        ),
-      );
+    if (subjectId.isEmpty) {
+      showSnackBar('Please select a subject');
       return;
     }
 
@@ -379,18 +442,16 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
         isSaving = true;
       });
 
-      final authProvider = context.read<AuthProvider>();
-
       await firestore.collection('assignments').add({
         'title': title,
         'description': description,
-        'classId': selectedClassId,
-        'className': selectedClassName,
-        'subjectId': selectedSubjectId,
-        'subjectName': selectedSubjectName,
-        'teacherId': authProvider.userId ?? '',
-        'teacherName': authProvider.fullName ?? widget.role,
-        'dueDate': Timestamp.fromDate(selectedDueDate),
+        'classId': classId,
+        'className': className,
+        'subjectId': subjectId,
+        'subjectName': subjectName,
+        'teacherId': currentUserId,
+        'teacherName': currentUserName,
+        'dueDate': Timestamp.fromDate(dueDate),
         'createdAt': FieldValue.serverTimestamp(),
       });
 
@@ -398,15 +459,6 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
 
       Navigator.pop(context);
 
-      titleController.clear();
-      descriptionController.clear();
-      selectedClassId = '';
-      selectedClassName = '';
-      selectedSubjectId = '';
-      selectedSubjectName = '';
-      subjects = [];
-      selectedDueDate = DateTime.now().add(const Duration(days: 7));
-
       await loadInitialData();
 
       if (!mounted) return;
@@ -415,11 +467,7 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
         isSaving = false;
       });
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Assignment created successfully'),
-        ),
-      );
+      showSnackBar('Assignment created successfully');
     } catch (error) {
       if (!mounted) return;
 
@@ -427,13 +475,7 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
         isSaving = false;
       });
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            error.toString().replaceAll('Exception: ', ''),
-          ),
-        ),
-      );
+      showSnackBar(error.toString().replaceAll('Exception: ', ''));
     }
   }
 
@@ -441,25 +483,28 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
     try {
       await firestore.collection('assignments').doc(assignmentId).delete();
 
+      final submissionSnapshot = await firestore
+          .collection('assignment_submissions')
+          .where('assignmentId', isEqualTo: assignmentId)
+          .get();
+
+      final batch = firestore.batch();
+
+      for (final doc in submissionSnapshot.docs) {
+        batch.delete(doc.reference);
+      }
+
+      await batch.commit();
+
       await loadInitialData();
 
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Assignment deleted successfully'),
-        ),
-      );
+      showSnackBar('Assignment deleted successfully');
     } catch (error) {
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            error.toString().replaceAll('Exception: ', ''),
-          ),
-        ),
-      );
+      showSnackBar(error.toString().replaceAll('Exception: ', ''));
     }
   }
 
@@ -499,12 +544,14 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
   void showAddAssignmentSheet() {
     titleController.clear();
     descriptionController.clear();
-    selectedClassId = '';
-    selectedClassName = '';
-    selectedSubjectId = '';
-    selectedSubjectName = '';
-    subjects = [];
-    selectedDueDate = DateTime.now().add(const Duration(days: 7));
+
+    String modalClassId = '';
+    String modalClassName = '';
+    String modalSubjectId = '';
+    String modalSubjectName = '';
+    List<Map<String, dynamic>> modalSubjects = [];
+    DateTime modalDueDate = DateTime.now().add(const Duration(days: 7));
+    bool isLoadingSubjects = false;
 
     showModalBottomSheet(
       context: context,
@@ -515,15 +562,15 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
           top: Radius.circular(24),
         ),
       ),
-      builder: (_) {
+      builder: (sheetContext) {
         return StatefulBuilder(
-          builder: (context, setModalState) {
+          builder: (sheetContext, setModalState) {
             return Padding(
               padding: EdgeInsets.only(
                 left: 24,
                 right: 24,
                 top: 24,
-                bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+                bottom: MediaQuery.of(sheetContext).viewInsets.bottom + 24,
               ),
               child: SingleChildScrollView(
                 child: Column(
@@ -558,8 +605,7 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
                     ),
                     const SizedBox(height: 14),
                     DropdownButtonFormField<String>(
-                      initialValue:
-                          selectedClassId.isEmpty ? null : selectedClassId,
+                      initialValue: modalClassId.isEmpty ? null : modalClassId,
                       decoration: const InputDecoration(
                         labelText: 'Select Class',
                         prefixIcon: Icon(Icons.class_outlined),
@@ -572,7 +618,30 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
                           ),
                         );
                       }).toList(),
-                      onChanged: (value) => selectClass(value, setModalState),
+                      onChanged: (value) async {
+                        if (value == null) return;
+
+                        final selectedClass = classes.firstWhere(
+                          (schoolClass) => schoolClass['id'] == value,
+                          orElse: () => {},
+                        );
+
+                        setModalState(() {
+                          modalClassId = value;
+                          modalClassName = selectedClass['className'] ?? '';
+                          modalSubjectId = '';
+                          modalSubjectName = '';
+                          modalSubjects = [];
+                          isLoadingSubjects = true;
+                        });
+
+                        final loadedSubjects = await loadSubjectsByClass(value);
+
+                        setModalState(() {
+                          modalSubjects = loadedSubjects;
+                          isLoadingSubjects = false;
+                        });
+                      },
                     ),
                     if (classes.isEmpty) ...[
                       const SizedBox(height: 10),
@@ -585,26 +654,50 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
                       ),
                     ],
                     const SizedBox(height: 14),
-                    DropdownButtonFormField<String>(
-                      initialValue:
-                          selectedSubjectId.isEmpty ? null : selectedSubjectId,
-                      decoration: const InputDecoration(
-                        labelText: 'Select Subject',
-                        prefixIcon: Icon(Icons.menu_book_outlined),
+                    if (isLoadingSubjects)
+                      const Center(
+                        child: Padding(
+                          padding: EdgeInsets.all(12),
+                          child: CircularProgressIndicator(),
+                        ),
+                      )
+                    else
+                      DropdownButtonFormField<String>(
+                        initialValue:
+                            modalSubjectId.isEmpty ? null : modalSubjectId,
+                        decoration: const InputDecoration(
+                          labelText: 'Select Subject',
+                          prefixIcon: Icon(Icons.menu_book_outlined),
+                        ),
+                        items: modalSubjects.map((subject) {
+                          return DropdownMenuItem<String>(
+                            value: subject['id'],
+                            child: Text(
+                              subject['subjectName'] ?? 'Unnamed Subject',
+                            ),
+                          );
+                        }).toList(),
+                        onChanged: modalSubjects.isEmpty
+                            ? null
+                            : (value) {
+                                if (value == null) return;
+
+                                final selectedSubject =
+                                    modalSubjects.firstWhere(
+                                  (subject) => subject['id'] == value,
+                                  orElse: () => {},
+                                );
+
+                                setModalState(() {
+                                  modalSubjectId = value;
+                                  modalSubjectName =
+                                      selectedSubject['subjectName'] ?? '';
+                                });
+                              },
                       ),
-                      items: subjects.map((subject) {
-                        return DropdownMenuItem<String>(
-                          value: subject['id'],
-                          child: Text(
-                            subject['subjectName'] ?? 'Unnamed Subject',
-                          ),
-                        );
-                      }).toList(),
-                      onChanged: subjects.isEmpty
-                          ? null
-                          : (value) => selectSubject(value, setModalState),
-                    ),
-                    if (selectedClassId.isNotEmpty && subjects.isEmpty) ...[
+                    if (modalClassId.isNotEmpty &&
+                        modalSubjects.isEmpty &&
+                        !isLoadingSubjects) ...[
                       const SizedBox(height: 10),
                       const Text(
                         'No subject found for this class. Admin must create a subject first.',
@@ -617,7 +710,17 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
                     const SizedBox(height: 14),
                     InkWell(
                       borderRadius: BorderRadius.circular(14),
-                      onTap: () => pickDueDate(context, setModalState),
+                      onTap: () {
+                        pickDueDate(
+                          modalContext: sheetContext,
+                          currentDate: modalDueDate,
+                          onPicked: (date) {
+                            setModalState(() {
+                              modalDueDate = date;
+                            });
+                          },
+                        );
+                      },
                       child: Container(
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
@@ -634,7 +737,7 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
                             const SizedBox(width: 12),
                             Expanded(
                               child: Text(
-                                'Due Date: ${selectedDueDate.day}/${selectedDueDate.month}/${selectedDueDate.year}',
+                                'Due Date: ${modalDueDate.day}/${modalDueDate.month}/${modalDueDate.year}',
                                 style: const TextStyle(
                                   color: AppColors.textDark,
                                   fontWeight: FontWeight.w600,
@@ -650,7 +753,20 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
                       width: double.infinity,
                       height: 52,
                       child: ElevatedButton.icon(
-                        onPressed: isSaving ? null : saveAssignment,
+                        onPressed: isSaving
+                            ? null
+                            : () {
+                                saveAssignment(
+                                  title: titleController.text.trim(),
+                                  description:
+                                      descriptionController.text.trim(),
+                                  classId: modalClassId,
+                                  className: modalClassName,
+                                  subjectId: modalSubjectId,
+                                  subjectName: modalSubjectName,
+                                  dueDate: modalDueDate,
+                                );
+                              },
                         icon: isSaving
                             ? const SizedBox(
                                 height: 20,
@@ -676,6 +792,132 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
     );
   }
 
+  Future<void> showAssignmentRecords(Map<String, dynamic> assignment) async {
+    final assignmentId = assignment['id'] ?? '';
+    final classId = assignment['classId'] ?? '';
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppColors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(24),
+        ),
+      ),
+      builder: (_) {
+        return FutureBuilder<List<Map<String, dynamic>>>(
+          future: getStudentsForAssignmentClass(classId),
+          builder: (context, snapshot) {
+            if (!snapshot.hasData) {
+              return const Padding(
+                padding: EdgeInsets.all(40),
+                child: Center(
+                  child: CircularProgressIndicator(),
+                ),
+              );
+            }
+
+            final students = snapshot.data ?? [];
+            final assignmentSubmissions =
+                getAssignmentSubmissions(assignmentId);
+
+            return Padding(
+              padding: const EdgeInsets.fromLTRB(24, 24, 24, 34),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    assignment['title'] ?? 'Assignment Records',
+                    style: const TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.textDark,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    '${assignmentSubmissions.length}/${students.length} submitted',
+                    style: const TextStyle(
+                      color: AppColors.textGrey,
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+                  Flexible(
+                    child: ListView.separated(
+                      shrinkWrap: true,
+                      itemCount: students.length,
+                      separatorBuilder: (context, index) {
+                        return const SizedBox(height: 10);
+                      },
+                      itemBuilder: (context, index) {
+                        final student = students[index];
+
+                        Map<String, dynamic>? submission;
+
+                        try {
+                          submission = assignmentSubmissions.firstWhere(
+                            (item) => item['studentId'] == student['id'],
+                          );
+                        } catch (_) {
+                          submission = null;
+                        }
+
+                        final submitted = submission != null;
+
+                        return Container(
+                          padding: const EdgeInsets.all(14),
+                          decoration: BoxDecoration(
+                            color: AppColors.background,
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(color: AppColors.border),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                student['fullName'] ?? 'Unknown Student',
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  color: AppColors.textDark,
+                                ),
+                              ),
+                              const SizedBox(height: 6),
+                              Text(
+                                submitted ? 'Submitted' : 'Pending',
+                                style: TextStyle(
+                                  color: submitted
+                                      ? AppColors.softGreen
+                                      : AppColors.danger,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              if (submitted) ...[
+                                const SizedBox(height: 6),
+                                Text(
+                                  'Comment: ${submission?['comment'] ?? ''}',
+                                  style: const TextStyle(
+                                    color: AppColors.textGrey,
+                                    height: 1.4,
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
   String formatDueDate(dynamic dueDate) {
     if (dueDate is Timestamp) {
       final date = dueDate.toDate();
@@ -683,6 +925,86 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
     }
 
     return 'No due date';
+  }
+
+  Widget studentSubmissionStatus(String assignmentId) {
+    final submission = getStudentSubmission(assignmentId);
+    final submitted = submission != null;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+      decoration: BoxDecoration(
+        color: submitted
+            ? AppColors.softGreen.withValues(alpha: 0.12)
+            : AppColors.danger.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Text(
+        submitted ? 'Submitted' : 'Pending',
+        style: TextStyle(
+          color: submitted ? AppColors.softGreen : AppColors.danger,
+          fontWeight: FontWeight.bold,
+          fontSize: 12,
+        ),
+      ),
+    );
+  }
+
+  Widget parentProgressWidget(Map<String, dynamic> assignment) {
+    final assignmentId = assignment['id'] ?? '';
+    final relatedChildren = getParentChildrenForAssignment(assignment);
+    final assignmentSubmissions =
+        getParentSubmissionsForAssignment(assignmentId);
+
+    if (relatedChildren.isEmpty) {
+      return const SizedBox();
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: relatedChildren.map((child) {
+        Map<String, dynamic>? submission;
+
+        try {
+          submission = assignmentSubmissions.firstWhere(
+            (item) => item['studentId'] == child['id'],
+          );
+        } catch (_) {
+          submission = null;
+        }
+
+        final submitted = submission != null;
+
+        return Padding(
+          padding: const EdgeInsets.only(top: 8),
+          child: Text(
+            '${child['fullName']}: ${submitted ? 'Submitted' : 'Pending'}',
+            style: TextStyle(
+              color: submitted ? AppColors.softGreen : AppColors.danger,
+              fontWeight: FontWeight.bold,
+              fontSize: 13,
+            ),
+          ),
+        );
+      }).toList(),
+    );
+  }
+
+  Widget adminTeacherProgressWidget(Map<String, dynamic> assignment) {
+    final assignmentId = assignment['id'] ?? '';
+    final submittedCount = getAssignmentSubmissions(assignmentId).length;
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Text(
+        '$submittedCount submission(s) received',
+        style: const TextStyle(
+          color: AppColors.primaryBlue,
+          fontWeight: FontWeight.bold,
+          fontSize: 13,
+        ),
+      ),
+    );
   }
 
   Widget assignmentCard(Map<String, dynamic> assignment) {
@@ -752,7 +1074,9 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
                 ),
                 const SizedBox(height: 5),
                 Text(
-                  teacherName.isEmpty ? 'Teacher not assigned' : 'Teacher: $teacherName',
+                  teacherName.isEmpty
+                      ? 'Teacher not assigned'
+                      : 'Teacher: $teacherName',
                   style: const TextStyle(
                     color: AppColors.textGrey,
                   ),
@@ -774,6 +1098,55 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
                     fontSize: 13,
                   ),
                 ),
+                if (isStudent) ...[
+                  const SizedBox(height: 10),
+                  studentSubmissionStatus(assignmentId),
+                  const SizedBox(height: 10),
+                  SizedBox(
+                    height: 42,
+                    child: ElevatedButton.icon(
+                      onPressed: () async {
+                        final updated = await Navigator.push<bool>(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => AssignmentSubmitScreen(
+                              assignment: assignment,
+                            ),
+                          ),
+                        );
+
+                        if (updated == true) {
+                          await loadInitialData();
+
+                          if (!mounted) return;
+
+                          showSnackBar('Assignment submitted successfully');
+                        }
+                      },
+                      icon: const Icon(Icons.comment_outlined),
+                      label: Text(
+                        getStudentSubmission(assignmentId) == null
+                            ? 'Submit Comment'
+                            : 'Update Comment',
+                      ),
+                    ),
+                  ),
+                ],
+                if (isParent) parentProgressWidget(assignment),
+                if (canCreateAssignment) adminTeacherProgressWidget(assignment),
+                if (canCreateAssignment) ...[
+                  const SizedBox(height: 10),
+                  SizedBox(
+                    height: 42,
+                    child: OutlinedButton.icon(
+                      onPressed: () {
+                        showAssignmentRecords(assignment);
+                      },
+                      icon: const Icon(Icons.list_alt_outlined),
+                      label: const Text('View Records'),
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
@@ -795,12 +1168,17 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
   Widget emptyState() {
     String message = 'No assignments found yet.';
 
-    if (widget.role == 'Student') {
+    if (currentRole == 'Student') {
       message =
           'No assignments found for your class yet. Ask your teacher to create assignments.';
     }
 
-    if (widget.role == 'Teacher' || widget.role == 'Admin') {
+    if (currentRole == 'Parent') {
+      message =
+          'No assignments found for your child yet. Make sure your child is assigned to a class.';
+    }
+
+    if (currentRole == 'Teacher' || currentRole == 'Admin') {
       message = 'No assignments found yet. Tap Add Assignment to create one.';
     }
 
@@ -819,13 +1197,24 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
     );
   }
 
+  void showSnackBar(String message) {
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final title = widget.role == 'Student'
-        ? 'My Assignments'
-        : widget.role == 'Parent'
-            ? 'Child Assignments'
-            : 'Assignments';
+    String title = 'Assignments';
+
+    if (currentRole == 'Student') title = 'My Assignments';
+    if (currentRole == 'Parent') title = 'Child Assignments';
+    if (currentRole == 'Admin') title = 'Assignment Records';
+    if (currentRole == 'Teacher') title = 'Assignments';
 
     return Scaffold(
       backgroundColor: AppColors.background,

@@ -24,34 +24,13 @@ class ParentDashboardScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final modules = [
-      {
-        'title': 'Child Overview',
-        'icon': Icons.child_care_outlined,
-      },
-      {
-        'title': 'Attendance',
-        'icon': Icons.fact_check_outlined,
-      },
-      {
-        'title': 'Assignments',
-        'icon': Icons.assignment_outlined,
-      },
-      {
-        'title': 'Fees',
-        'icon': Icons.payments_outlined,
-      },
-      {
-        'title': 'Results',
-        'icon': Icons.bar_chart_outlined,
-      },
-      {
-        'title': 'Messaging',
-        'icon': Icons.message_outlined,
-      },
-      {
-        'title': 'AI Progress Summary',
-        'icon': Icons.smart_toy_outlined,
-      },
+      {'title': 'Child Overview', 'icon': Icons.child_care_outlined},
+      {'title': 'Attendance', 'icon': Icons.fact_check_outlined},
+      {'title': 'Assignments', 'icon': Icons.assignment_outlined},
+      {'title': 'Fees', 'icon': Icons.payments_outlined},
+      {'title': 'Results', 'icon': Icons.bar_chart_outlined},
+      {'title': 'Messaging', 'icon': Icons.message_outlined},
+      {'title': 'AI Progress Summary', 'icon': Icons.smart_toy_outlined},
     ];
 
     return Scaffold(
@@ -73,9 +52,7 @@ class ParentDashboardScreen extends StatelessWidget {
                   color: AppColors.textDark,
                 ),
               ),
-
               const SizedBox(height: 6),
-
               const Text(
                 'Follow your child attendance, assignments, results, fees, and messages.',
                 style: TextStyle(
@@ -83,9 +60,7 @@ class ParentDashboardScreen extends StatelessWidget {
                   color: AppColors.textGrey,
                 ),
               ),
-
               const SizedBox(height: 22),
-
               GridView.count(
                 crossAxisCount: 2,
                 shrinkWrap: true,
@@ -116,13 +91,9 @@ class ParentDashboardScreen extends StatelessWidget {
                   ),
                 ],
               ),
-
               const SizedBox(height: 26),
-
               const SectionTitle(title: 'Parent Modules'),
-
               const SizedBox(height: 14),
-
               GridView.builder(
                 itemCount: modules.length,
                 shrinkWrap: true,
@@ -209,22 +180,18 @@ class ParentDashboardScreen extends StatelessWidget {
                   );
                 },
               ),
-
               const SizedBox(height: 20),
             ],
           ),
         ),
       ),
-
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: 0,
         selectedItemColor: AppColors.primaryBlue,
         unselectedItemColor: AppColors.textGrey,
         type: BottomNavigationBarType.fixed,
         onTap: (index) {
-          if (index == 0) {
-            return;
-          }
+          if (index == 0) return;
 
           if (index == 1) {
             Navigator.push(

@@ -11,6 +11,7 @@ import '../common/announcements_screen.dart';
 import '../common/profile_screen.dart';
 import '../parent/fees_screen.dart';
 import '../student/results_screen.dart';
+import '../teacher/assignments_screen.dart';
 import 'class_management_screen.dart';
 import 'subject_management_screen.dart';
 import 'user_management_screen.dart';
@@ -26,34 +27,14 @@ class AdminDashboardScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final modules = [
-      {
-        'title': 'User Management',
-        'icon': Icons.people_outline,
-      },
-      {
-        'title': 'Class Management',
-        'icon': Icons.class_outlined,
-      },
-      {
-        'title': 'Subject Management',
-        'icon': Icons.menu_book_outlined,
-      },
-      {
-        'title': 'Student Results',
-        'icon': Icons.bar_chart_outlined,
-      },
-      {
-        'title': 'Fees',
-        'icon': Icons.payments_outlined,
-      },
-      {
-        'title': 'Announcements',
-        'icon': Icons.campaign_outlined,
-      },
-      {
-        'title': 'Reports',
-        'icon': Icons.description_outlined,
-      },
+      {'title': 'User Management', 'icon': Icons.people_outline},
+      {'title': 'Class Management', 'icon': Icons.class_outlined},
+      {'title': 'Subject Management', 'icon': Icons.menu_book_outlined},
+      {'title': 'Student Results', 'icon': Icons.bar_chart_outlined},
+      {'title': 'Assignments', 'icon': Icons.assignment_outlined},
+      {'title': 'Fees', 'icon': Icons.payments_outlined},
+      {'title': 'Announcements', 'icon': Icons.campaign_outlined},
+      {'title': 'Reports', 'icon': Icons.description_outlined},
     ];
 
     return Scaffold(
@@ -77,7 +58,7 @@ class AdminDashboardScreen extends StatelessWidget {
               ),
               const SizedBox(height: 6),
               const Text(
-                'Manage school users, classes, results, reports, and AI insights.',
+                'Manage school users, classes, assignments, results, reports, and AI insights.',
                 style: TextStyle(
                   fontSize: 14,
                   color: AppColors.textGrey,
@@ -93,19 +74,19 @@ class AdminDashboardScreen extends StatelessWidget {
                 childAspectRatio: 1.45,
                 children: const [
                   DashboardCard(
-                    title: 'Total Students',
+                    title: 'Students',
                     value: 'Live',
                     icon: Icons.school_outlined,
                   ),
                   DashboardCard(
-                    title: 'Total Teachers',
+                    title: 'Teachers',
                     value: 'Live',
                     icon: Icons.person_outline,
                   ),
                   DashboardCard(
-                    title: 'Total Classes',
+                    title: 'Assignments',
                     value: 'Live',
-                    icon: Icons.class_outlined,
+                    icon: Icons.assignment_outlined,
                   ),
                   DashboardCard(
                     title: 'Results',
@@ -166,6 +147,16 @@ class AdminDashboardScreen extends StatelessWidget {
                           context,
                           MaterialPageRoute(
                             builder: (_) => const ResultsScreen(),
+                          ),
+                        );
+                      }
+
+                      if (title == 'Assignments') {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) =>
+                                const AssignmentsScreen(role: 'Admin'),
                           ),
                         );
                       }
@@ -275,7 +266,7 @@ class AdminDashboardScreen extends StatelessWidget {
                       SizedBox(width: 14),
                       Expanded(
                         child: Text(
-                          'AI Report Generator: Create school, class, attendance, and performance reports.',
+                          'AI Report Generator: Create school, class, attendance, assignment, and performance reports.',
                           style: TextStyle(
                             fontWeight: FontWeight.w600,
                             color: AppColors.textDark,
@@ -355,7 +346,7 @@ class AdminDashboardScreen extends StatelessWidget {
             Navigator.push(
               context,
               MaterialPageRoute(
-                builder: (_) => const ResultsScreen(),
+                builder: (_) => const AssignmentsScreen(role: 'Admin'),
               ),
             );
           }
@@ -364,7 +355,7 @@ class AdminDashboardScreen extends StatelessWidget {
             Navigator.push(
               context,
               MaterialPageRoute(
-                builder: (_) => const AIAssistantScreen(),
+                builder: (_) => const ResultsScreen(),
               ),
             );
           }
@@ -388,12 +379,12 @@ class AdminDashboardScreen extends StatelessWidget {
             label: 'Users',
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.bar_chart_outlined),
-            label: 'Results',
+            icon: Icon(Icons.assignment_outlined),
+            label: 'Tasks',
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.smart_toy_outlined),
-            label: 'AI',
+            icon: Icon(Icons.bar_chart_outlined),
+            label: 'Results',
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.person_outline),
