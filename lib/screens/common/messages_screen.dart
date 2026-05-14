@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 
 import '../../core/constants/app_colors.dart';
 import '../../providers/auth_provider.dart';
+import '../../services/notification_service.dart';
 
 class MessagesScreen extends StatefulWidget {
   final String role;
@@ -37,6 +38,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
   String selectedConversationId = '';
   String selectedReceiverName = '';
   String selectedReceiverId = '';
+  String selectedReceiverRole = '';
 
   bool get isAdmin {
     return currentRole == 'Admin';
@@ -51,8 +53,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
   }
 
   bool get isTeacherChat {
-    return currentRole == 'Teacher' ||
-        widget.targetRole == 'Teacher';
+    return currentRole == 'Teacher' || widget.targetRole == 'Teacher';
   }
 
   String get collectionName {
@@ -132,6 +133,49 @@ class _MessagesScreenState extends State<MessagesScreen> {
     }
   }
 
+  Future<String> findFirstAdminId() async {
+    final snapshot = await firestore
+        .collection('users')
+        .where('role', isEqualTo: 'Admin')
+        .where('isActive', isEqualTo: true)
+        .limit(1)
+        .get();
+
+    if (snapshot.docs.isEmpty) {
+      return '';
+    }
+
+    return snapshot.docs.first.id;
+  }
+
+  Future<String> getReceiverIdForNotification() async {
+    if (isAdmin) {
+      if (selectedReceiverId.isNotEmpty) {
+        return selectedReceiverId;
+      }
+
+      if (selectedConversationId.isNotEmpty) {
+        return selectedConversationId;
+      }
+
+      return '';
+    }
+
+    return findFirstAdminId();
+  }
+
+  String getReceiverRoleForNotification() {
+    if (isAdmin) {
+      if (selectedReceiverRole.isNotEmpty) {
+        return selectedReceiverRole;
+      }
+
+      return userRoleLabel;
+    }
+
+    return 'Admin';
+  }
+
   Future<void> loadUserConversation() async {
     if (currentUserId.isEmpty) {
       conversations = [];
@@ -160,8 +204,9 @@ class _MessagesScreenState extends State<MessagesScreen> {
     }
 
     selectedConversationId = currentUserId;
-    selectedReceiverId = currentUserId;
-    selectedReceiverName = currentUserName;
+    selectedReceiverId = await findFirstAdminId();
+    selectedReceiverName = 'School Admin';
+    selectedReceiverRole = 'Admin';
 
     await loadMessages(selectedConversationId);
 
@@ -209,6 +254,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
       selectedConversationId = firstConversation['id'] ?? '';
       selectedReceiverId = firstConversation['userId'] ?? '';
       selectedReceiverName = firstConversation['userName'] ?? userRoleLabel;
+      selectedReceiverRole = firstConversation['userRole'] ?? userRoleLabel;
 
       await loadMessages(selectedConversationId);
 
@@ -283,6 +329,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
       selectedConversationId = conversationId;
       selectedReceiverId = conversation['userId'] ?? '';
       selectedReceiverName = conversation['userName'] ?? userRoleLabel;
+      selectedReceiverRole = conversation['userRole'] ?? userRoleLabel;
       isLoading = true;
     });
 
@@ -314,8 +361,9 @@ class _MessagesScreenState extends State<MessagesScreen> {
     if (selectedConversationId.isEmpty) {
       if (!isAdmin) {
         selectedConversationId = currentUserId;
-        selectedReceiverId = currentUserId;
-        selectedReceiverName = currentUserName;
+        selectedReceiverId = await findFirstAdminId();
+        selectedReceiverName = 'School Admin';
+        selectedReceiverRole = 'Admin';
       } else {
         showSnackBar('Please select a conversation');
         return;
@@ -345,13 +393,15 @@ class _MessagesScreenState extends State<MessagesScreen> {
       batch.set(
         conversationRef,
         {
-          'userId': selectedReceiverId.isNotEmpty
+          'userId': isAdmin
               ? selectedReceiverId
-              : selectedConversationId,
-          'userName': selectedReceiverName.isNotEmpty
+              : currentUserId,
+          'userName': isAdmin
               ? selectedReceiverName
               : currentUserName,
-          'userRole': isTeacherChat ? 'Teacher' : 'Parent',
+          'userRole': isAdmin
+              ? getReceiverRoleForNotification()
+              : currentRole,
           'lastMessage': text,
           'lastMessageAt': FieldValue.serverTimestamp(),
           'lastSenderId': currentUserId,
@@ -365,6 +415,17 @@ class _MessagesScreenState extends State<MessagesScreen> {
       );
 
       await batch.commit();
+
+      final receiverId = await getReceiverIdForNotification();
+
+      await NotificationService.notifyMessageReceiver(
+        receiverId: receiverId,
+        senderId: currentUserId,
+        senderName: currentUserName,
+        senderRole: currentRole,
+        messageText: text,
+        conversationId: selectedConversationId,
+      );
 
       messageController.clear();
 
@@ -517,6 +578,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
     selectedConversationId = userId;
     selectedReceiverId = userId;
     selectedReceiverName = userName;
+    selectedReceiverRole = userRole;
 
     await loadMessages(userId);
     await loadAdminConversations();
@@ -972,6 +1034,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
                         selectedConversationId = '';
                         selectedReceiverId = '';
                         selectedReceiverName = '';
+                        selectedReceiverRole = '';
                         messages = [];
                       });
                     },

@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 
 import '../../core/constants/app_colors.dart';
 import '../../providers/auth_provider.dart';
+import '../../services/notification_service.dart';
 
 class FeesScreen extends StatefulWidget {
   final String role;
@@ -146,10 +147,8 @@ class _FeesScreenState extends State<FeesScreen> {
   }
 
   Future<void> loadBankDetails() async {
-    final doc = await firestore
-        .collection('school_settings')
-        .doc('bank_details')
-        .get();
+    final doc =
+        await firestore.collection('school_settings').doc('bank_details').get();
 
     if (!doc.exists) {
       bankDetails = null;
@@ -253,6 +252,13 @@ class _FeesScreenState extends State<FeesScreen> {
         'parentName': data['parentName'] ?? '',
       };
     }).toList();
+
+    students.sort((a, b) {
+      final nameA = (a['fullName'] ?? '').toString();
+      final nameB = (b['fullName'] ?? '').toString();
+
+      return nameA.compareTo(nameB);
+    });
   }
 
   Future<void> loadAllFees() async {
@@ -373,6 +379,11 @@ class _FeesScreenState extends State<FeesScreen> {
       'paymentDate': data['paymentDate'],
       'message': data['message'] ?? '',
       'status': data['status'] ?? 'Pending',
+      'approvedAs': data['approvedAs'] ?? '',
+      'approvedBy': data['approvedBy'] ?? '',
+      'approvedByName': data['approvedByName'] ?? '',
+      'updatedBy': data['updatedBy'] ?? '',
+      'updatedByName': data['updatedByName'] ?? '',
       'createdAt': data['createdAt'],
       'updatedAt': data['updatedAt'],
     };
@@ -597,7 +608,7 @@ class _FeesScreenState extends State<FeesScreen> {
         isSaving = true;
       });
 
-      await firestore.collection('payment_confirmations').add({
+      final paymentRef = await firestore.collection('payment_confirmations').add({
         'feeId': fee['id'] ?? '',
         'feeTitle': fee['title'] ?? '',
         'studentId': fee['studentId'] ?? '',
@@ -613,6 +624,13 @@ class _FeesScreenState extends State<FeesScreen> {
         'createdAt': FieldValue.serverTimestamp(),
         'updatedAt': FieldValue.serverTimestamp(),
       });
+
+      await NotificationService.notifyPaymentConfirmationToAdmins(
+        paymentId: paymentRef.id,
+        parentId: currentUserId,
+        parentName: currentUserName,
+        studentName: fee['studentName'] ?? '',
+      );
 
       if (!mounted) return;
 
@@ -650,6 +668,7 @@ class _FeesScreenState extends State<FeesScreen> {
   }) async {
     final confirmationId = confirmation['id'] ?? '';
     final feeId = confirmation['feeId'] ?? '';
+    final parentId = confirmation['parentId'] ?? '';
 
     if (confirmationId.toString().isEmpty) {
       showSnackBar('Invalid payment confirmation');
@@ -668,9 +687,8 @@ class _FeesScreenState extends State<FeesScreen> {
 
       final batch = firestore.batch();
 
-      final confirmationRef = firestore
-          .collection('payment_confirmations')
-          .doc(confirmationId);
+      final confirmationRef =
+          firestore.collection('payment_confirmations').doc(confirmationId);
 
       final feeRef = firestore.collection('fees').doc(feeId);
 
@@ -688,6 +706,14 @@ class _FeesScreenState extends State<FeesScreen> {
       });
 
       await batch.commit();
+
+      await NotificationService.notifyPaymentDecisionToParent(
+        parentId: parentId,
+        paymentId: confirmationId,
+        status: 'Approved',
+        adminId: currentUserId,
+        adminName: currentUserName,
+      );
 
       await loadInitialData();
 
@@ -720,6 +746,14 @@ class _FeesScreenState extends State<FeesScreen> {
         isSaving = true;
       });
 
+      final confirmationDoc = await firestore
+          .collection('payment_confirmations')
+          .doc(confirmationId)
+          .get();
+
+      final confirmationData = confirmationDoc.data();
+      final parentId = confirmationData?['parentId'] ?? '';
+
       await firestore
           .collection('payment_confirmations')
           .doc(confirmationId)
@@ -729,6 +763,14 @@ class _FeesScreenState extends State<FeesScreen> {
         'updatedByName': currentUserName,
         'updatedAt': FieldValue.serverTimestamp(),
       });
+
+      await NotificationService.notifyPaymentDecisionToParent(
+        parentId: parentId,
+        paymentId: confirmationId,
+        status: 'Rejected',
+        adminId: currentUserId,
+        adminName: currentUserName,
+      );
 
       await loadInitialData();
 

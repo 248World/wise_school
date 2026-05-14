@@ -1,19 +1,24 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 import '../../core/constants/app_colors.dart';
+import '../../providers/auth_provider.dart';
 import '../../widgets/dashboard_card.dart';
 import '../../widgets/module_card.dart';
 import '../../widgets/section_title.dart';
-import '../ai/ai_performance_analysis_screen.dart';
+import '../common/announcements_screen.dart';
 import '../common/messages_screen.dart';
+import '../common/notifications_screen.dart';
 import '../common/profile_screen.dart';
 import '../student/results_screen.dart';
+import '../student/timetable_screen.dart';
 import '../teacher/assignments_screen.dart';
 import '../teacher/attendance_screen.dart';
 import 'child_overview_screen.dart';
 import 'fees_screen.dart';
 
-class ParentDashboardScreen extends StatelessWidget {
+class ParentDashboardScreen extends StatefulWidget {
   final String displayName;
 
   const ParentDashboardScreen({
@@ -22,21 +27,167 @@ class ParentDashboardScreen extends StatelessWidget {
   });
 
   @override
+  State<ParentDashboardScreen> createState() => _ParentDashboardScreenState();
+}
+
+class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
+  final FirebaseFirestore firestore = FirebaseFirestore.instance;
+
+  bool isLoadingStats = true;
+
+  String parentId = '';
+
+  int childrenCount = 0;
+  int assignmentsCount = 0;
+  int feesCount = 0;
+  int notificationsCount = 0;
+
+  @override
+  void initState() {
+    super.initState();
+
+    Future.microtask(() {
+      loadDashboardStats();
+    });
+  }
+
+  Future<void> loadDashboardStats() async {
+    try {
+      final authProvider = context.read<AuthProvider>();
+      parentId = authProvider.userId ?? '';
+
+      if (parentId.isEmpty) {
+        if (!mounted) return;
+
+        setState(() {
+          isLoadingStats = false;
+        });
+
+        return;
+      }
+
+      final childrenSnapshot = await firestore
+          .collection('users')
+          .where('role', isEqualTo: 'Student')
+          .where('parentId', isEqualTo: parentId)
+          .where('isActive', isEqualTo: true)
+          .get();
+
+      final childIds = childrenSnapshot.docs.map((doc) => doc.id).toList();
+
+      final classIds = childrenSnapshot.docs
+          .map((doc) => doc.data()['classId'] ?? '')
+          .where((classId) => classId.toString().isNotEmpty)
+          .toSet()
+          .toList();
+
+      int loadedAssignments = 0;
+      int loadedFees = 0;
+
+      for (final classId in classIds) {
+        final assignmentSnapshot = await firestore
+            .collection('assignments')
+            .where('classId', isEqualTo: classId)
+            .get();
+
+        loadedAssignments += assignmentSnapshot.docs.length;
+      }
+
+      for (final childId in childIds) {
+        final feesSnapshot = await firestore
+            .collection('fees')
+            .where('studentId', isEqualTo: childId)
+            .get();
+
+        loadedFees += feesSnapshot.docs.length;
+      }
+
+      final notificationsSnapshot = await firestore
+          .collection('notifications')
+          .where('userId', isEqualTo: parentId)
+          .where('isRead', isEqualTo: false)
+          .get();
+
+      if (!mounted) return;
+
+      setState(() {
+        childrenCount = childrenSnapshot.docs.length;
+        assignmentsCount = loadedAssignments;
+        feesCount = loadedFees;
+        notificationsCount = notificationsSnapshot.docs.length;
+        isLoadingStats = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+
+      setState(() {
+        isLoadingStats = false;
+      });
+    }
+  }
+
+  String statValue(int value) {
+    if (isLoadingStats) return '...';
+    return value.toString();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final modules = [
-      {'title': 'Child Overview', 'icon': Icons.child_care_outlined},
-      {'title': 'Attendance', 'icon': Icons.fact_check_outlined},
-      {'title': 'Assignments', 'icon': Icons.assignment_outlined},
-      {'title': 'Fees', 'icon': Icons.payments_outlined},
-      {'title': 'Results', 'icon': Icons.bar_chart_outlined},
-      {'title': 'Messaging', 'icon': Icons.message_outlined},
-      {'title': 'AI Progress Summary', 'icon': Icons.smart_toy_outlined},
+      {
+        'title': 'Child Overview',
+        'icon': Icons.child_care_outlined,
+      },
+      {
+        'title': 'Timetable',
+        'icon': Icons.calendar_month_outlined,
+      },
+      {
+        'title': 'Attendance',
+        'icon': Icons.fact_check_outlined,
+      },
+      {
+        'title': 'Assignments',
+        'icon': Icons.assignment_outlined,
+      },
+      {
+        'title': 'Fees',
+        'icon': Icons.account_balance_wallet_outlined,
+      },
+      {
+        'title': 'Results',
+        'icon': Icons.bar_chart_outlined,
+      },
+      {
+        'title': 'Announcements',
+        'icon': Icons.campaign_outlined,
+      },
+      {
+        'title': 'Messaging',
+        'icon': Icons.chat_bubble_outline,
+      },
+      {
+        'title': 'Notifications',
+        'icon': Icons.notifications_outlined,
+      },
     ];
+
+    modules.sort((a, b) {
+      final titleA = a['title'] as String;
+      final titleB = b['title'] as String;
+      return titleA.compareTo(titleB);
+    });
 
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
         title: const Text('Parent Dashboard'),
+        actions: [
+          IconButton(
+            onPressed: loadDashboardStats,
+            icon: const Icon(Icons.refresh_outlined),
+          ),
+        ],
       ),
       body: SafeArea(
         child: SingleChildScrollView(
@@ -45,7 +196,7 @@ class ParentDashboardScreen extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Welcome, $displayName',
+                'Welcome, ${widget.displayName}',
                 style: const TextStyle(
                   fontSize: 26,
                   fontWeight: FontWeight.bold,
@@ -54,7 +205,7 @@ class ParentDashboardScreen extends StatelessWidget {
               ),
               const SizedBox(height: 6),
               const Text(
-                'Follow your child attendance, assignments, fees, results, and messages.',
+                'Follow your child timetable, attendance, assignments, fees, results, announcements, notifications, and messages.',
                 style: TextStyle(
                   fontSize: 14,
                   color: AppColors.textGrey,
@@ -68,26 +219,26 @@ class ParentDashboardScreen extends StatelessWidget {
                 mainAxisSpacing: 14,
                 crossAxisSpacing: 14,
                 childAspectRatio: 1.45,
-                children: const [
+                children: [
                   DashboardCard(
-                    title: 'Attendance',
-                    value: 'Live',
-                    icon: Icons.fact_check_outlined,
+                    title: 'Children',
+                    value: statValue(childrenCount),
+                    icon: Icons.child_care_outlined,
                   ),
                   DashboardCard(
                     title: 'Assignments',
-                    value: 'Live',
+                    value: statValue(assignmentsCount),
                     icon: Icons.assignment_outlined,
                   ),
                   DashboardCard(
                     title: 'Fees',
-                    value: 'Live',
-                    icon: Icons.payments_outlined,
+                    value: statValue(feesCount),
+                    icon: Icons.account_balance_wallet_outlined,
                   ),
                   DashboardCard(
-                    title: 'Results',
-                    value: 'Live',
-                    icon: Icons.bar_chart_outlined,
+                    title: 'Unread Notices',
+                    value: statValue(notificationsCount),
+                    icon: Icons.notifications_outlined,
                   ),
                 ],
               ),
@@ -111,21 +262,12 @@ class ParentDashboardScreen extends StatelessWidget {
                     title: title,
                     icon: modules[index]['icon'] as IconData,
                     onTap: () {
-                      if (title == 'Child Overview') {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const ChildOverviewScreen(),
-                          ),
-                        );
-                      }
-
-                      if (title == 'Attendance') {
+                      if (title == 'Announcements') {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
                             builder: (_) =>
-                                const AttendanceScreen(role: 'Parent'),
+                                const AnnouncementsScreen(role: 'Parent'),
                           ),
                         );
                       }
@@ -140,11 +282,52 @@ class ParentDashboardScreen extends StatelessWidget {
                         );
                       }
 
+                      if (title == 'Attendance') {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) =>
+                                const AttendanceScreen(role: 'Parent'),
+                          ),
+                        );
+                      }
+
+                      if (title == 'Child Overview') {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const ChildOverviewScreen(),
+                          ),
+                        );
+                      }
+
                       if (title == 'Fees') {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
                             builder: (_) => const FeesScreen(role: 'Parent'),
+                          ),
+                        );
+                      }
+
+                      if (title == 'Messaging') {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const MessagesScreen(
+                              role: 'Parent',
+                              targetRole: 'Admin',
+                            ),
+                          ),
+                        );
+                      }
+
+                      if (title == 'Notifications') {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) =>
+                                const NotificationsScreen(role: 'Parent'),
                           ),
                         );
                       }
@@ -158,21 +341,12 @@ class ParentDashboardScreen extends StatelessWidget {
                         );
                       }
 
-                      if (title == 'Messaging') {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const MessagesScreen(role: 'Parent'),
-                          ),
-                        );
-                      }
-
-                      if (title == 'AI Progress Summary') {
+                      if (title == 'Timetable') {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
                             builder: (_) =>
-                                const AIPerformanceAnalysisScreen(),
+                                const TimetableScreen(role: 'Parent'),
                           ),
                         );
                       }
@@ -197,7 +371,7 @@ class ParentDashboardScreen extends StatelessWidget {
             Navigator.push(
               context,
               MaterialPageRoute(
-                builder: (_) => const ChildOverviewScreen(),
+                builder: (_) => const TimetableScreen(role: 'Parent'),
               ),
             );
           }
@@ -215,7 +389,7 @@ class ParentDashboardScreen extends StatelessWidget {
             Navigator.push(
               context,
               MaterialPageRoute(
-                builder: (_) => const ResultsScreen(),
+                builder: (_) => const NotificationsScreen(role: 'Parent'),
               ),
             );
           }
@@ -235,19 +409,19 @@ class ParentDashboardScreen extends StatelessWidget {
             label: 'Home',
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.child_care_outlined),
-            label: 'Child',
+            icon: Icon(Icons.calendar_month_outlined),
+            label: 'Timetable',
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.payments_outlined),
+            icon: Icon(Icons.account_balance_wallet_outlined),
             label: 'Fees',
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.bar_chart_outlined),
-            label: 'Results',
+            icon: Icon(Icons.notifications_outlined),
+            label: 'Notices',
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.person_outline),
+            icon: Icon(Icons.account_circle_outlined),
             label: 'Profile',
           ),
         ],

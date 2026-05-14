@@ -1,11 +1,15 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 import '../../core/constants/app_colors.dart';
+import '../../providers/auth_provider.dart';
 import '../../widgets/dashboard_card.dart';
 import '../../widgets/module_card.dart';
 import '../../widgets/section_title.dart';
 import '../ai/ai_study_assistant_screen.dart';
 import '../common/announcements_screen.dart';
+import '../common/notifications_screen.dart';
 import '../common/profile_screen.dart';
 import '../parent/fees_screen.dart';
 import '../teacher/assignments_screen.dart';
@@ -13,7 +17,7 @@ import '../teacher/attendance_screen.dart';
 import 'results_screen.dart';
 import 'timetable_screen.dart';
 
-class StudentDashboardScreen extends StatelessWidget {
+class StudentDashboardScreen extends StatefulWidget {
   final String displayName;
 
   const StudentDashboardScreen({
@@ -22,11 +26,109 @@ class StudentDashboardScreen extends StatelessWidget {
   });
 
   @override
+  State<StudentDashboardScreen> createState() => _StudentDashboardScreenState();
+}
+
+class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
+  final FirebaseFirestore firestore = FirebaseFirestore.instance;
+
+  bool isLoadingStats = true;
+
+  String studentId = '';
+  String classId = '';
+
+  int assignmentsCount = 0;
+  int attendanceCount = 0;
+  int feesCount = 0;
+  int notificationsCount = 0;
+
+  @override
+  void initState() {
+    super.initState();
+
+    Future.microtask(() {
+      loadDashboardStats();
+    });
+  }
+
+  Future<void> loadDashboardStats() async {
+    try {
+      final authProvider = context.read<AuthProvider>();
+      studentId = authProvider.userId ?? '';
+
+      if (studentId.isEmpty) {
+        if (!mounted) return;
+
+        setState(() {
+          isLoadingStats = false;
+        });
+
+        return;
+      }
+
+      final userDoc = await firestore.collection('users').doc(studentId).get();
+
+      if (userDoc.exists) {
+        final userData = userDoc.data();
+        classId = userData?['classId'] ?? '';
+      }
+
+      final attendanceSnapshot = await firestore
+          .collection('attendance')
+          .where('studentId', isEqualTo: studentId)
+          .get();
+
+      final feesSnapshot = await firestore
+          .collection('fees')
+          .where('studentId', isEqualTo: studentId)
+          .get();
+
+      int loadedAssignments = 0;
+
+      if (classId.isNotEmpty) {
+        final assignmentsSnapshot = await firestore
+            .collection('assignments')
+            .where('classId', isEqualTo: classId)
+            .get();
+
+        loadedAssignments = assignmentsSnapshot.docs.length;
+      }
+
+      final notificationsSnapshot = await firestore
+          .collection('notifications')
+          .where('userId', isEqualTo: studentId)
+          .where('isRead', isEqualTo: false)
+          .get();
+
+      if (!mounted) return;
+
+      setState(() {
+        assignmentsCount = loadedAssignments;
+        attendanceCount = attendanceSnapshot.docs.length;
+        feesCount = feesSnapshot.docs.length;
+        notificationsCount = notificationsSnapshot.docs.length;
+        isLoadingStats = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+
+      setState(() {
+        isLoadingStats = false;
+      });
+    }
+  }
+
+  String statValue(int value) {
+    if (isLoadingStats) return '...';
+    return value.toString();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final modules = [
       {
         'title': 'Profile',
-        'icon': Icons.person_outline,
+        'icon': Icons.account_circle_outlined,
       },
       {
         'title': 'Timetable',
@@ -46,18 +148,38 @@ class StudentDashboardScreen extends StatelessWidget {
       },
       {
         'title': 'Fees',
-        'icon': Icons.payments_outlined,
+        'icon': Icons.account_balance_wallet_outlined,
+      },
+      {
+        'title': 'Announcements',
+        'icon': Icons.campaign_outlined,
       },
       {
         'title': 'AI Study Assistant',
-        'icon': Icons.smart_toy_outlined,
+        'icon': Icons.psychology_outlined,
+      },
+      {
+        'title': 'Notifications',
+        'icon': Icons.notifications_outlined,
       },
     ];
+
+    modules.sort((a, b) {
+      final titleA = a['title'] as String;
+      final titleB = b['title'] as String;
+      return titleA.compareTo(titleB);
+    });
 
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
         title: const Text('Student Dashboard'),
+        actions: [
+          IconButton(
+            onPressed: loadDashboardStats,
+            icon: const Icon(Icons.refresh_outlined),
+          ),
+        ],
       ),
       body: SafeArea(
         child: SingleChildScrollView(
@@ -66,26 +188,22 @@ class StudentDashboardScreen extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Welcome, $displayName',
+                'Welcome, ${widget.displayName}',
                 style: const TextStyle(
                   fontSize: 26,
                   fontWeight: FontWeight.bold,
                   color: AppColors.textDark,
                 ),
               ),
-
               const SizedBox(height: 6),
-
               const Text(
-                'View your results, attendance, assignments, fees, and study support.',
+                'View your timetable, results, attendance, assignments, fees, announcements, notifications, and study support.',
                 style: TextStyle(
                   fontSize: 14,
                   color: AppColors.textGrey,
                 ),
               ),
-
               const SizedBox(height: 22),
-
               GridView.count(
                 crossAxisCount: 2,
                 shrinkWrap: true,
@@ -93,36 +211,32 @@ class StudentDashboardScreen extends StatelessWidget {
                 mainAxisSpacing: 14,
                 crossAxisSpacing: 14,
                 childAspectRatio: 1.45,
-                children: const [
+                children: [
                   DashboardCard(
                     title: 'Attendance',
-                    value: 'Live',
+                    value: statValue(attendanceCount),
                     icon: Icons.fact_check_outlined,
                   ),
                   DashboardCard(
-                    title: 'Average Result',
-                    value: 'Live',
-                    icon: Icons.bar_chart_outlined,
-                  ),
-                  DashboardCard(
                     title: 'Assignments',
-                    value: 'Live',
+                    value: statValue(assignmentsCount),
                     icon: Icons.assignment_outlined,
                   ),
                   DashboardCard(
                     title: 'Fees',
-                    value: 'Live',
-                    icon: Icons.payments_outlined,
+                    value: statValue(feesCount),
+                    icon: Icons.account_balance_wallet_outlined,
+                  ),
+                  DashboardCard(
+                    title: 'Unread Notices',
+                    value: statValue(notificationsCount),
+                    icon: Icons.notifications_outlined,
                   ),
                 ],
               ),
-
               const SizedBox(height: 26),
-
               const SectionTitle(title: 'Student Modules'),
-
               const SizedBox(height: 14),
-
               GridView.builder(
                 itemCount: modules.length,
                 shrinkWrap: true,
@@ -140,40 +254,21 @@ class StudentDashboardScreen extends StatelessWidget {
                     title: title,
                     icon: modules[index]['icon'] as IconData,
                     onTap: () {
-                      if (title == 'Profile') {
+                      if (title == 'AI Study Assistant') {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const AIStudyAssistantScreen(),
+                          ),
+                        );
+                      }
+
+                      if (title == 'Announcements') {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
                             builder: (_) =>
-                                const ProfileScreen(role: 'Student'),
-                          ),
-                        );
-                      }
-
-                      if (title == 'Timetable') {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const TimetableScreen(),
-                          ),
-                        );
-                      }
-
-                      if (title == 'Results') {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const ResultsScreen(),
-                          ),
-                        );
-                      }
-
-                      if (title == 'Attendance') {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) =>
-                                const AttendanceScreen(role: 'Student'),
+                                const AnnouncementsScreen(role: 'Student'),
                           ),
                         );
                       }
@@ -188,6 +283,16 @@ class StudentDashboardScreen extends StatelessWidget {
                         );
                       }
 
+                      if (title == 'Attendance') {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) =>
+                                const AttendanceScreen(role: 'Student'),
+                          ),
+                        );
+                      }
+
                       if (title == 'Fees') {
                         Navigator.push(
                           context,
@@ -198,11 +303,41 @@ class StudentDashboardScreen extends StatelessWidget {
                         );
                       }
 
-                      if (title == 'AI Study Assistant') {
+                      if (title == 'Notifications') {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (_) => const AIStudyAssistantScreen(),
+                            builder: (_) =>
+                                const NotificationsScreen(role: 'Student'),
+                          ),
+                        );
+                      }
+
+                      if (title == 'Profile') {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) =>
+                                const ProfileScreen(role: 'Student'),
+                          ),
+                        );
+                      }
+
+                      if (title == 'Results') {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const ResultsScreen(),
+                          ),
+                        );
+                      }
+
+                      if (title == 'Timetable') {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) =>
+                                const TimetableScreen(role: 'Student'),
                           ),
                         );
                       }
@@ -210,28 +345,24 @@ class StudentDashboardScreen extends StatelessWidget {
                   );
                 },
               ),
-
               const SizedBox(height: 20),
             ],
           ),
         ),
       ),
-
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: 0,
         selectedItemColor: AppColors.primaryBlue,
         unselectedItemColor: AppColors.textGrey,
         type: BottomNavigationBarType.fixed,
         onTap: (index) {
-          if (index == 0) {
-            return;
-          }
+          if (index == 0) return;
 
           if (index == 1) {
             Navigator.push(
               context,
               MaterialPageRoute(
-                builder: (_) => const ResultsScreen(),
+                builder: (_) => const TimetableScreen(role: 'Student'),
               ),
             );
           }
@@ -249,7 +380,7 @@ class StudentDashboardScreen extends StatelessWidget {
             Navigator.push(
               context,
               MaterialPageRoute(
-                builder: (_) => const AnnouncementsScreen(role: 'Student'),
+                builder: (_) => const NotificationsScreen(role: 'Student'),
               ),
             );
           }
@@ -269,19 +400,19 @@ class StudentDashboardScreen extends StatelessWidget {
             label: 'Home',
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.bar_chart_outlined),
-            label: 'Results',
+            icon: Icon(Icons.calendar_month_outlined),
+            label: 'Timetable',
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.assignment_outlined),
             label: 'Tasks',
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.campaign_outlined),
+            icon: Icon(Icons.notifications_outlined),
             label: 'Notices',
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.person_outline),
+            icon: Icon(Icons.account_circle_outlined),
             label: 'Profile',
           ),
         ],

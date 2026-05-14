@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 
 import '../../core/constants/app_colors.dart';
 import '../../providers/auth_provider.dart';
+import '../../services/notification_service.dart';
 import '../student/assignment_submit_screen.dart';
 
 class AssignmentsScreen extends StatefulWidget {
@@ -417,22 +418,25 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
     required String subjectName,
     required DateTime dueDate,
   }) async {
-    if (title.isEmpty) {
+    final cleanTitle = title.trim();
+    final cleanDescription = description.trim();
+
+    if (cleanTitle.isEmpty) {
       showSnackBar('Please enter assignment title');
       return;
     }
 
-    if (description.isEmpty) {
+    if (cleanDescription.isEmpty) {
       showSnackBar('Please enter assignment description');
       return;
     }
 
-    if (classId.isEmpty) {
+    if (classId.trim().isEmpty) {
       showSnackBar('Please select a class');
       return;
     }
 
-    if (subjectId.isEmpty) {
+    if (subjectId.trim().isEmpty) {
       showSnackBar('Please select a subject');
       return;
     }
@@ -442,9 +446,9 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
         isSaving = true;
       });
 
-      await firestore.collection('assignments').add({
-        'title': title,
-        'description': description,
+      final assignmentRef = await firestore.collection('assignments').add({
+        'title': cleanTitle,
+        'description': cleanDescription,
         'classId': classId,
         'className': className,
         'subjectId': subjectId,
@@ -453,7 +457,17 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
         'teacherName': currentUserName,
         'dueDate': Timestamp.fromDate(dueDate),
         'createdAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
       });
+
+      await NotificationService.notifyAssignmentToClass(
+        classId: classId,
+        assignmentId: assignmentRef.id,
+        assignmentTitle: cleanTitle,
+        senderId: currentUserId,
+        senderName: currentUserName,
+        senderRole: currentRole,
+      );
 
       if (!mounted) return;
 
@@ -757,9 +771,8 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
                             ? null
                             : () {
                                 saveAssignment(
-                                  title: titleController.text.trim(),
-                                  description:
-                                      descriptionController.text.trim(),
+                                  title: titleController.text,
+                                  description: descriptionController.text,
                                   classId: modalClassId,
                                   className: modalClassName,
                                   subjectId: modalSubjectId,
