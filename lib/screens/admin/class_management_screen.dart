@@ -1,7 +1,7 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
 import '../../core/constants/app_colors.dart';
-import '../../services/database_service.dart';
 
 class ClassManagementScreen extends StatefulWidget {
   const ClassManagementScreen({super.key});
@@ -11,13 +11,15 @@ class ClassManagementScreen extends StatefulWidget {
 }
 
 class _ClassManagementScreenState extends State<ClassManagementScreen> {
-  final DatabaseService databaseService = DatabaseService();
+  final FirebaseFirestore firestore = FirebaseFirestore.instance;
 
   bool isLoading = true;
+  bool isSaving = false;
   String? errorMessage;
 
   List<Map<String, dynamic>> classes = [];
   List<Map<String, dynamic>> teachers = [];
+  List<Map<String, dynamic>> students = [];
 
   final classNameController = TextEditingController();
   final levelController = TextEditingController();
@@ -45,18 +47,80 @@ class _ClassManagementScreenState extends State<ClassManagementScreen> {
         errorMessage = null;
       });
 
-      final loadedClasses = await databaseService.getClasses();
-      final users = await databaseService.getUsers();
+      final classesSnapshot = await firestore.collection('classes').get();
+      final usersSnapshot = await firestore.collection('users').get();
 
-      final loadedTeachers = users.where((user) {
+      final loadedClasses = classesSnapshot.docs.map((doc) {
+        final data = doc.data();
+
+        return {
+          'id': doc.id,
+          'className': data['className'] ?? '',
+          'level': data['level'] ?? '',
+          'teacherId': data['teacherId'] ?? '',
+          'teacherName': data['teacherName'] ?? '',
+          'studentCount': data['studentCount'] ?? 0,
+          'createdAt': data['createdAt'],
+          'updatedAt': data['updatedAt'],
+        };
+      }).toList();
+
+      loadedClasses.sort((a, b) {
+        return (a['className'] ?? '').toString().compareTo(
+              (b['className'] ?? '').toString(),
+            );
+      });
+
+      final loadedTeachers = usersSnapshot.docs.map((doc) {
+        final data = doc.data();
+
+        return {
+          'id': doc.id,
+          'fullName': data['fullName'] ?? '',
+          'email': data['email'] ?? '',
+          'phone': data['phone'] ?? '',
+          'role': data['role'] ?? '',
+          'isActive': data['isActive'] ?? true,
+        };
+      }).where((user) {
         return user['role'] == 'Teacher' && user['isActive'] == true;
       }).toList();
+
+      loadedTeachers.sort((a, b) {
+        return (a['fullName'] ?? '').toString().compareTo(
+              (b['fullName'] ?? '').toString(),
+            );
+      });
+
+      final loadedStudents = usersSnapshot.docs.map((doc) {
+        final data = doc.data();
+
+        return {
+          'id': doc.id,
+          'fullName': data['fullName'] ?? '',
+          'email': data['email'] ?? '',
+          'phone': data['phone'] ?? '',
+          'role': data['role'] ?? '',
+          'classId': data['classId'] ?? '',
+          'className': data['className'] ?? '',
+          'isActive': data['isActive'] ?? true,
+        };
+      }).where((user) {
+        return user['role'] == 'Student' && user['isActive'] == true;
+      }).toList();
+
+      loadedStudents.sort((a, b) {
+        return (a['fullName'] ?? '').toString().compareTo(
+              (b['fullName'] ?? '').toString(),
+            );
+      });
 
       if (!mounted) return;
 
       setState(() {
         classes = loadedClasses;
         teachers = loadedTeachers;
+        students = loadedStudents;
         isLoading = false;
       });
     } catch (error) {
@@ -69,6 +133,25 @@ class _ClassManagementScreenState extends State<ClassManagementScreen> {
     }
   }
 
+  Future<void> recalculateClassStudentCount(String classId) async {
+    if (classId.isEmpty) return;
+
+    final snapshot = await firestore
+        .collection('users')
+        .where('role', isEqualTo: 'Student')
+        .where('classId', isEqualTo: classId)
+        .where('isActive', isEqualTo: true)
+        .get();
+
+    await firestore.collection('classes').doc(classId).set(
+      {
+        'studentCount': snapshot.docs.length,
+        'updatedAt': FieldValue.serverTimestamp(),
+      },
+      SetOptions(merge: true),
+    );
+  }
+
   Future<void> addClass() async {
     final className = classNameController.text.trim();
     final level = levelController.text.trim();
@@ -79,44 +162,150 @@ class _ClassManagementScreenState extends State<ClassManagementScreen> {
     }
 
     try {
-      await databaseService.addClass(
-        className: className,
-        level: level,
-        teacherId: selectedTeacherId,
-        teacherName: selectedTeacherName,
-      );
+      setState(() {
+        isSaving = true;
+      });
+
+      await firestore.collection('classes').add({
+        'className': className,
+        'level': level,
+        'teacherId': selectedTeacherId,
+        'teacherName': selectedTeacherName,
+        'studentCount': 0,
+        'createdAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+
+      classNameController.clear();
+      levelController.clear();
+      selectedTeacherId = '';
+      selectedTeacherName = '';
 
       if (!mounted) return;
 
       Navigator.pop(context);
 
-      classNameController.clear();
-      levelController.clear();
-
-      selectedTeacherId = '';
-      selectedTeacherName = '';
+      setState(() {
+        isSaving = false;
+      });
 
       await loadData();
-
-      if (!mounted) return;
 
       showSnackBar('Class added successfully');
     } catch (error) {
       if (!mounted) return;
 
+      setState(() {
+        isSaving = false;
+      });
+
       showSnackBar(error.toString().replaceAll('Exception: ', ''));
     }
   }
 
-  Future<void> deleteClass(String classId) async {
-    try {
-      await databaseService.deleteClass(classId: classId);
+  Future<void> updateClass({
+    required String classId,
+    required String oldClassName,
+  }) async {
+    final className = classNameController.text.trim();
+    final level = levelController.text.trim();
 
-      await loadData();
+    if (className.isEmpty || level.isEmpty) {
+      showSnackBar('Please enter class name and level');
+      return;
+    }
+
+    try {
+      setState(() {
+        isSaving = true;
+      });
+
+      final batch = firestore.batch();
+      final classRef = firestore.collection('classes').doc(classId);
+
+      batch.update(classRef, {
+        'className': className,
+        'level': level,
+        'teacherId': selectedTeacherId,
+        'teacherName': selectedTeacherName,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+
+      final studentsSnapshot = await firestore
+          .collection('users')
+          .where('role', isEqualTo: 'Student')
+          .where('classId', isEqualTo: classId)
+          .get();
+
+      for (final studentDoc in studentsSnapshot.docs) {
+        batch.update(studentDoc.reference, {
+          'className': className,
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+      }
+
+      final subjectsSnapshot = await firestore
+          .collection('subjects')
+          .where('classId', isEqualTo: classId)
+          .get();
+
+      for (final subjectDoc in subjectsSnapshot.docs) {
+        batch.update(subjectDoc.reference, {
+          'className': className,
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+      }
+
+      final assignmentsSnapshot = await firestore
+          .collection('assignments')
+          .where('classId', isEqualTo: classId)
+          .get();
+
+      for (final assignmentDoc in assignmentsSnapshot.docs) {
+        batch.update(assignmentDoc.reference, {
+          'className': className,
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+      }
+
+      await batch.commit();
 
       if (!mounted) return;
 
-      showSnackBar('Class deleted successfully');
+      Navigator.pop(context);
+
+      setState(() {
+        isSaving = false;
+      });
+
+      await loadData();
+
+      showSnackBar('$oldClassName updated successfully');
+    } catch (error) {
+      if (!mounted) return;
+
+      setState(() {
+        isSaving = false;
+      });
+
+      showSnackBar(error.toString().replaceAll('Exception: ', ''));
+    }
+  }
+
+  Future<void> removeTeacherFromClass({
+    required String classId,
+    required String className,
+  }) async {
+    try {
+      await firestore.collection('classes').doc(classId).update({
+        'teacherId': '',
+        'teacherName': '',
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+
+      await loadData();
+
+      showSnackBar('Teacher removed from $className');
     } catch (error) {
       if (!mounted) return;
 
@@ -124,13 +313,109 @@ class _ClassManagementScreenState extends State<ClassManagementScreen> {
     }
   }
 
-  Future<void> confirmDelete(String classId, String className) async {
+  Future<void> deleteClass({
+    required String classId,
+    required String className,
+  }) async {
+    try {
+      final batch = firestore.batch();
+
+      final classRef = firestore.collection('classes').doc(classId);
+      batch.delete(classRef);
+
+      final studentsSnapshot = await firestore
+          .collection('users')
+          .where('role', isEqualTo: 'Student')
+          .where('classId', isEqualTo: classId)
+          .get();
+
+      for (final studentDoc in studentsSnapshot.docs) {
+        batch.update(studentDoc.reference, {
+          'classId': '',
+          'className': '',
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+      }
+
+      await batch.commit();
+
+      await loadData();
+
+      showSnackBar('$className deleted. Students were unassigned from this class.');
+    } catch (error) {
+      if (!mounted) return;
+
+      showSnackBar(error.toString().replaceAll('Exception: ', ''));
+    }
+  }
+
+  Future<void> assignStudentToClass({
+    required String studentId,
+    required String studentName,
+    required String classId,
+    required String className,
+    required String oldClassId,
+  }) async {
+    try {
+      await firestore.collection('users').doc(studentId).update({
+        'classId': classId,
+        'className': className,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+
+      await recalculateClassStudentCount(classId);
+
+      if (oldClassId.isNotEmpty && oldClassId != classId) {
+        await recalculateClassStudentCount(oldClassId);
+      }
+
+      await loadData();
+
+      showSnackBar('$studentName added to $className');
+    } catch (error) {
+      if (!mounted) return;
+
+      showSnackBar(error.toString().replaceAll('Exception: ', ''));
+    }
+  }
+
+  Future<void> removeStudentFromClass({
+    required String studentId,
+    required String studentName,
+    required String classId,
+    required String className,
+  }) async {
+    try {
+      await firestore.collection('users').doc(studentId).update({
+        'classId': '',
+        'className': '',
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+
+      await recalculateClassStudentCount(classId);
+
+      await loadData();
+
+      showSnackBar('$studentName removed from $className');
+    } catch (error) {
+      if (!mounted) return;
+
+      showSnackBar(error.toString().replaceAll('Exception: ', ''));
+    }
+  }
+
+  Future<void> confirmDeleteClass({
+    required String classId,
+    required String className,
+  }) async {
     final shouldDelete = await showDialog<bool>(
       context: context,
       builder: (_) {
         return AlertDialog(
           title: const Text('Delete Class'),
-          content: Text('Are you sure you want to delete $className?'),
+          content: Text(
+            'Are you sure you want to delete $className? Students will not be deleted, they will only be removed from this class.',
+          ),
           actions: [
             TextButton(
               onPressed: () {
@@ -153,8 +438,110 @@ class _ClassManagementScreenState extends State<ClassManagementScreen> {
     );
 
     if (shouldDelete == true) {
-      await deleteClass(classId);
+      await deleteClass(
+        classId: classId,
+        className: className,
+      );
     }
+  }
+
+  Future<void> confirmRemoveTeacher({
+    required String classId,
+    required String className,
+    required String teacherName,
+  }) async {
+    final shouldRemove = await showDialog<bool>(
+      context: context,
+      builder: (_) {
+        return AlertDialog(
+          title: const Text('Remove Teacher'),
+          content: Text(
+            'Remove $teacherName from $className? The teacher account will not be deleted.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context, false);
+              },
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context, true);
+              },
+              child: const Text(
+                'Remove',
+                style: TextStyle(color: AppColors.danger),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (shouldRemove == true) {
+      await removeTeacherFromClass(
+        classId: classId,
+        className: className,
+      );
+    }
+  }
+
+  Future<void> confirmRemoveStudent({
+    required String studentId,
+    required String studentName,
+    required String classId,
+    required String className,
+  }) async {
+    final shouldRemove = await showDialog<bool>(
+      context: context,
+      builder: (_) {
+        return AlertDialog(
+          title: const Text('Remove Student'),
+          content: Text(
+            'Remove $studentName from $className? The student account will not be deleted.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context, false);
+              },
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context, true);
+              },
+              child: const Text(
+                'Remove',
+                style: TextStyle(color: AppColors.danger),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (shouldRemove == true) {
+      await removeStudentFromClass(
+        studentId: studentId,
+        studentName: studentName,
+        classId: classId,
+        className: className,
+      );
+    }
+  }
+
+  List<Map<String, dynamic>> studentsInClass(String classId) {
+    return students.where((student) {
+      return student['classId'] == classId;
+    }).toList();
+  }
+
+  List<Map<String, dynamic>> studentsNotInClass(String classId) {
+    return students.where((student) {
+      return student['classId'] != classId;
+    }).toList();
   }
 
   Widget pngIconBox({
@@ -292,7 +679,7 @@ class _ClassManagementScreenState extends State<ClassManagementScreen> {
                     ),
                     const SizedBox(height: 6),
                     Text(
-                      '${classes.length} class(es) registered • ${teachers.length} teacher(s) available.',
+                      '${classes.length} class(es) • ${teachers.length} teacher(s) • ${students.length} student(s).',
                       style: TextStyle(
                         color: AppColors.white.withValues(alpha: 0.85),
                         fontSize: 13,
@@ -364,10 +751,42 @@ class _ClassManagementScreenState extends State<ClassManagementScreen> {
   void showAddClassSheet() {
     classNameController.clear();
     levelController.clear();
-
     selectedTeacherId = '';
     selectedTeacherName = '';
 
+    showClassFormSheet(
+      title: 'Add New Class',
+      buttonText: 'Save Class',
+      onSubmit: addClass,
+    );
+  }
+
+  void showEditClassSheet(Map<String, dynamic> item) {
+    final classId = item['id'] ?? '';
+    final className = item['className'] ?? '';
+
+    classNameController.text = className;
+    levelController.text = item['level'] ?? '';
+    selectedTeacherId = item['teacherId'] ?? '';
+    selectedTeacherName = item['teacherName'] ?? '';
+
+    showClassFormSheet(
+      title: 'Edit Class',
+      buttonText: 'Update Class',
+      onSubmit: () {
+        updateClass(
+          classId: classId,
+          oldClassName: className,
+        );
+      },
+    );
+  }
+
+  void showClassFormSheet({
+    required String title,
+    required String buttonText,
+    required VoidCallback onSubmit,
+  }) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -403,10 +822,10 @@ class _ClassManagementScreenState extends State<ClassManagementScreen> {
                           padding: 10,
                         ),
                         const SizedBox(width: 12),
-                        const Expanded(
+                        Expanded(
                           child: Text(
-                            'Add New Class',
-                            style: TextStyle(
+                            title,
+                            style: const TextStyle(
                               fontSize: 22,
                               fontWeight: FontWeight.w900,
                               color: AppColors.textDark,
@@ -438,7 +857,7 @@ class _ClassManagementScreenState extends State<ClassManagementScreen> {
                       initialValue:
                           selectedTeacherId.isEmpty ? null : selectedTeacherId,
                       decoration: const InputDecoration(
-                        labelText: 'Assign Teacher',
+                        labelText: 'Assign / Change Teacher',
                         prefixIcon: Icon(Icons.person_outline),
                       ),
                       items: teachers.map((teacher) {
@@ -450,15 +869,14 @@ class _ClassManagementScreenState extends State<ClassManagementScreen> {
                         );
                       }).toList(),
                       onChanged: (value) {
-                        final selectedTeacher = teachers.firstWhere(
-                          (teacher) => teacher['id'] == value,
+                        final teacher = teachers.firstWhere(
+                          (item) => item['id'] == value,
                           orElse: () => {},
                         );
 
                         setModalState(() {
                           selectedTeacherId = value ?? '';
-                          selectedTeacherName =
-                              selectedTeacher['fullName'] ?? '';
+                          selectedTeacherName = teacher['fullName'] ?? '';
                         });
                       },
                     ),
@@ -477,9 +895,20 @@ class _ClassManagementScreenState extends State<ClassManagementScreen> {
                       width: double.infinity,
                       height: 52,
                       child: ElevatedButton.icon(
-                        onPressed: addClass,
-                        icon: const Icon(Icons.add),
-                        label: const Text('Save Class'),
+                        onPressed: isSaving ? null : onSubmit,
+                        icon: isSaving
+                            ? const SizedBox(
+                                height: 20,
+                                width: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: AppColors.white,
+                                ),
+                              )
+                            : const Icon(Icons.save_outlined),
+                        label: Text(
+                          isSaving ? 'Saving...' : buttonText,
+                        ),
                       ),
                     ),
                   ],
@@ -489,6 +918,384 @@ class _ClassManagementScreenState extends State<ClassManagementScreen> {
           },
         );
       },
+    );
+  }
+
+  void showManageTeacherSheet(Map<String, dynamic> item) {
+    final classId = item['id'] ?? '';
+    final className = item['className'] ?? '';
+    String modalTeacherId = item['teacherId'] ?? '';
+    String modalTeacherName = item['teacherName'] ?? '';
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppColors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(28),
+        ),
+      ),
+      builder: (_) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return Padding(
+              padding: EdgeInsets.only(
+                left: 24,
+                right: 24,
+                top: 18,
+                bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+              ),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    sheetHandle(),
+                    const SizedBox(height: 18),
+                    Row(
+                      children: [
+                        pngIconBox(
+                          imagePath: 'assets/icons/teacher.png',
+                          fallbackIcon: Icons.person_4_outlined,
+                          size: 48,
+                          padding: 10,
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            'Manage Teacher for $className',
+                            style: const TextStyle(
+                              color: AppColors.textDark,
+                              fontSize: 21,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 18),
+                    DropdownButtonFormField<String>(
+                      initialValue: modalTeacherId.isEmpty ? null : modalTeacherId,
+                      decoration: const InputDecoration(
+                        labelText: 'Select Teacher',
+                        prefixIcon: Icon(Icons.person_outline),
+                      ),
+                      items: teachers.map((teacher) {
+                        return DropdownMenuItem<String>(
+                          value: teacher['id'],
+                          child: Text(teacher['fullName'] ?? 'Unknown Teacher'),
+                        );
+                      }).toList(),
+                      onChanged: (value) {
+                        final teacher = teachers.firstWhere(
+                          (item) => item['id'] == value,
+                          orElse: () => {},
+                        );
+
+                        setModalState(() {
+                          modalTeacherId = value ?? '';
+                          modalTeacherName = teacher['fullName'] ?? '';
+                        });
+                      },
+                    ),
+                    const SizedBox(height: 18),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 50,
+                      child: ElevatedButton.icon(
+                        onPressed: modalTeacherId.isEmpty
+                            ? null
+                            : () async {
+                                try {
+                                  await firestore
+                                      .collection('classes')
+                                      .doc(classId)
+                                      .update({
+                                    'teacherId': modalTeacherId,
+                                    'teacherName': modalTeacherName,
+                                    'updatedAt': FieldValue.serverTimestamp(),
+                                  });
+
+                                  if (!context.mounted) return;
+
+                                  Navigator.pop(context);
+
+                                  await loadData();
+
+                                  showSnackBar('Teacher updated successfully');
+                                } catch (error) {
+                                  showSnackBar(
+                                    error
+                                        .toString()
+                                        .replaceAll('Exception: ', ''),
+                                  );
+                                }
+                              },
+                        icon: const Icon(Icons.save_outlined),
+                        label: const Text('Save Teacher'),
+                      ),
+                    ),
+                    if ((item['teacherName'] ?? '').toString().isNotEmpty) ...[
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        width: double.infinity,
+                        height: 50,
+                        child: OutlinedButton.icon(
+                          onPressed: () {
+                            Navigator.pop(context);
+
+                            confirmRemoveTeacher(
+                              classId: classId,
+                              className: className,
+                              teacherName: item['teacherName'] ?? '',
+                            );
+                          },
+                          icon: const Icon(
+                            Icons.person_remove_outlined,
+                            color: AppColors.danger,
+                          ),
+                          label: const Text(
+                            'Remove Teacher from Class',
+                            style: TextStyle(color: AppColors.danger),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void showManageStudentsSheet(Map<String, dynamic> item) {
+    final classId = item['id'] ?? '';
+    final className = item['className'] ?? '';
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppColors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(28),
+        ),
+      ),
+      builder: (_) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            final assignedStudents = studentsInClass(classId);
+            final availableStudents = studentsNotInClass(classId);
+
+            return Padding(
+              padding: const EdgeInsets.fromLTRB(20, 18, 20, 34),
+              child: SizedBox(
+                height: MediaQuery.of(context).size.height * 0.78,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    sheetHandle(),
+                    const SizedBox(height: 18),
+                    Row(
+                      children: [
+                        pngIconBox(
+                          imagePath: 'assets/icons/student.png',
+                          fallbackIcon: Icons.school_outlined,
+                          size: 48,
+                          padding: 10,
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            'Manage Students for $className',
+                            style: const TextStyle(
+                              color: AppColors.textDark,
+                              fontSize: 21,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 18),
+                    smallStatusChip(
+                      text: '${assignedStudents.length} assigned student(s)',
+                      color: AppColors.primaryBlue,
+                    ),
+                    const SizedBox(height: 14),
+                    const Text(
+                      'Students in this class',
+                      style: TextStyle(
+                        color: AppColors.textDark,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Expanded(
+                      child: assignedStudents.isEmpty
+                          ? const Center(
+                              child: Text(
+                                'No students assigned to this class yet.',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  color: AppColors.textGrey,
+                                ),
+                              ),
+                            )
+                          : ListView.separated(
+                              itemCount: assignedStudents.length,
+                              separatorBuilder: (context, index) {
+                                return const SizedBox(height: 8);
+                              },
+                              itemBuilder: (context, index) {
+                                final student = assignedStudents[index];
+
+                                return studentRow(
+                                  student: student,
+                                  trailing: IconButton(
+                                    onPressed: () {
+                                      Navigator.pop(context);
+
+                                      confirmRemoveStudent(
+                                        studentId: student['id'] ?? '',
+                                        studentName:
+                                            student['fullName'] ?? 'Student',
+                                        classId: classId,
+                                        className: className,
+                                      );
+                                    },
+                                    icon: const Icon(
+                                      Icons.remove_circle_outline,
+                                      color: AppColors.danger,
+                                    ),
+                                  ),
+                                );
+                              },
+                            ),
+                    ),
+                    const SizedBox(height: 14),
+                    const Text(
+                      'Add students',
+                      style: TextStyle(
+                        color: AppColors.textDark,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Expanded(
+                      child: availableStudents.isEmpty
+                          ? const Center(
+                              child: Text(
+                                'No available students to add.',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  color: AppColors.textGrey,
+                                ),
+                              ),
+                            )
+                          : ListView.separated(
+                              itemCount: availableStudents.length,
+                              separatorBuilder: (context, index) {
+                                return const SizedBox(height: 8);
+                              },
+                              itemBuilder: (context, index) {
+                                final student = availableStudents[index];
+
+                                return studentRow(
+                                  student: student,
+                                  trailing: IconButton(
+                                    onPressed: () async {
+                                      Navigator.pop(context);
+
+                                      await assignStudentToClass(
+                                        studentId: student['id'] ?? '',
+                                        studentName:
+                                            student['fullName'] ?? 'Student',
+                                        classId: classId,
+                                        className: className,
+                                        oldClassId: student['classId'] ?? '',
+                                      );
+                                    },
+                                    icon: const Icon(
+                                      Icons.add_circle_outline,
+                                      color: AppColors.primaryBlue,
+                                    ),
+                                  ),
+                                );
+                              },
+                            ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget studentRow({
+    required Map<String, dynamic> student,
+    required Widget trailing,
+  }) {
+    final studentName = student['fullName'] ?? 'Student';
+    final email = student['email'] ?? '';
+    final currentClassName = student['className'] ?? '';
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.background,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Row(
+        children: [
+          pngIconBox(
+            imagePath: 'assets/icons/student.png',
+            fallbackIcon: Icons.school_outlined,
+            size: 42,
+            padding: 9,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  studentName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: AppColors.textDark,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  currentClassName.toString().isEmpty
+                      ? email
+                      : '$email • Current: $currentClassName',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: AppColors.textGrey,
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          trailing,
+        ],
+      ),
     );
   }
 
@@ -535,7 +1342,8 @@ class _ClassManagementScreenState extends State<ClassManagementScreen> {
     final className = item['className'] ?? 'Unnamed Class';
     final level = item['level'] ?? 'No level';
     final teacherName = item['teacherName'] ?? '';
-    final studentCount = item['studentCount'] ?? 0;
+    final assignedStudents = studentsInClass(classId);
+    final studentCount = assignedStudents.length;
 
     return Material(
       color: Colors.transparent,
@@ -568,63 +1376,146 @@ class _ClassManagementScreenState extends State<ClassManagementScreen> {
                 ),
               ),
             ),
-            Row(
+            Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                pngIconBox(
-                  imagePath: 'assets/icons/classes.png',
-                  fallbackIcon: Icons.class_outlined,
-                  size: 56,
-                  padding: 11,
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        className,
-                        style: const TextStyle(
-                          fontSize: 17,
-                          fontWeight: FontWeight.w900,
-                          color: AppColors.textDark,
-                          height: 1.25,
-                        ),
-                      ),
-                      const SizedBox(height: 10),
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    pngIconBox(
+                      imagePath: 'assets/icons/classes.png',
+                      fallbackIcon: Icons.class_outlined,
+                      size: 56,
+                      padding: 11,
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          smallStatusChip(
-                            text:
-                                level.toString().isEmpty ? 'No level' : level,
-                            color: AppColors.primaryBlue,
+                          Text(
+                            className,
+                            style: const TextStyle(
+                              fontSize: 17,
+                              fontWeight: FontWeight.w900,
+                              color: AppColors.textDark,
+                              height: 1.25,
+                            ),
                           ),
-                          smallStatusChip(
-                            text: '$studentCount Students',
-                            color: AppColors.softGreen,
+                          const SizedBox(height: 10),
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            children: [
+                              smallStatusChip(
+                                text: level.toString().isEmpty
+                                    ? 'No level'
+                                    : level,
+                                color: AppColors.primaryBlue,
+                              ),
+                              smallStatusChip(
+                                text: '$studentCount Students',
+                                color: AppColors.softGreen,
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 10),
+                          detailLine(
+                            icon: Icons.person_outline,
+                            text: teacherName.toString().isEmpty
+                                ? 'Teacher: Not assigned'
+                                : 'Teacher: $teacherName',
                           ),
                         ],
                       ),
-                      const SizedBox(height: 10),
-                      detailLine(
-                        icon: Icons.person_outline,
-                        text: teacherName.isEmpty
-                            ? 'Teacher: Not assigned'
-                            : 'Teacher: $teacherName',
-                      ),
-                    ],
-                  ),
+                    ),
+                    PopupMenuButton<String>(
+                      onSelected: (value) {
+                        if (value == 'edit') {
+                          showEditClassSheet(item);
+                        }
+
+                        if (value == 'teacher') {
+                          showManageTeacherSheet(item);
+                        }
+
+                        if (value == 'students') {
+                          showManageStudentsSheet(item);
+                        }
+
+                        if (value == 'delete') {
+                          confirmDeleteClass(
+                            classId: classId,
+                            className: className,
+                          );
+                        }
+                      },
+                      itemBuilder: (context) {
+                        return const [
+                          PopupMenuItem(
+                            value: 'edit',
+                            child: Text('Edit Class'),
+                          ),
+                          PopupMenuItem(
+                            value: 'teacher',
+                            child: Text('Manage Teacher'),
+                          ),
+                          PopupMenuItem(
+                            value: 'students',
+                            child: Text('Manage Students'),
+                          ),
+                          PopupMenuItem(
+                            value: 'delete',
+                            child: Text('Delete Class'),
+                          ),
+                        ];
+                      },
+                    ),
+                  ],
                 ),
-                IconButton(
-                  onPressed: () {
-                    confirmDelete(classId, className);
-                  },
-                  icon: const Icon(
-                    Icons.delete_outline,
-                    color: AppColors.danger,
-                  ),
+                const SizedBox(height: 14),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    OutlinedButton.icon(
+                      onPressed: () {
+                        showEditClassSheet(item);
+                      },
+                      icon: const Icon(Icons.edit_outlined),
+                      label: const Text('Edit'),
+                    ),
+                    OutlinedButton.icon(
+                      onPressed: () {
+                        showManageTeacherSheet(item);
+                      },
+                      icon: const Icon(Icons.person_4_outlined),
+                      label: const Text('Teacher'),
+                    ),
+                    OutlinedButton.icon(
+                      onPressed: () {
+                        showManageStudentsSheet(item);
+                      },
+                      icon: const Icon(Icons.groups_outlined),
+                      label: const Text('Students'),
+                    ),
+                    OutlinedButton.icon(
+                      onPressed: () {
+                        confirmDeleteClass(
+                          classId: classId,
+                          className: className,
+                        );
+                      },
+                      icon: const Icon(
+                        Icons.delete_outline,
+                        color: AppColors.danger,
+                      ),
+                      label: const Text(
+                        'Delete',
+                        style: TextStyle(color: AppColors.danger),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),

@@ -929,6 +929,12 @@ class _StudentGroupChatScreenState extends State<StudentGroupChatScreen> {
                   hintText: 'Write a message...',
                   prefixIcon: Icon(Icons.message_outlined),
                 ),
+                textInputAction: TextInputAction.send,
+                onSubmitted: (_) {
+                  if (!isSending) {
+                    sendMessage();
+                  }
+                },
               ),
             ),
             const SizedBox(width: 8),
@@ -1418,7 +1424,7 @@ class _StudentGroupChatScreenState extends State<StudentGroupChatScreen> {
           ),
         ],
       ),
-      floatingActionButton: hasClass
+      floatingActionButton: hasClass && selectedGroupId.isEmpty
           ? FloatingActionButton.extended(
               backgroundColor: AppColors.primaryBlue,
               foregroundColor: AppColors.white,

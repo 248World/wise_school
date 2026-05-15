@@ -19,7 +19,7 @@ class _AIAssistantScreenState extends State<AIAssistantScreen> {
   final List<Map<String, dynamic>> messages = [
     {
       'text':
-          'Hello! I am your Wise School AI assistant. I can help you summarize attendance, fees, assignments, users, announcements, and generate school reports.',
+          'Hello! I am your Wise School AI assistant. I can summarize attendance, fees, assignments, users, announcements, and generate school reports from your database.',
       'isUser': false,
     },
   ];
@@ -55,6 +55,7 @@ class _AIAssistantScreenState extends State<AIAssistantScreen> {
     final subjects = await countCollection('subjects');
     final assignments = await countCollection('assignments');
     final attendance = await countCollection('attendance');
+    final marks = await countCollection('marks');
     final fees = await countCollection('fees');
     final announcements = await countCollection('announcements');
 
@@ -72,13 +73,14 @@ Academic:
 - Subjects: $subjects
 - Assignments: $assignments
 - Attendance records: $attendance
+- Mark records: $marks
 
 Administration:
 - Fee records: $fees
 - Announcements: $announcements
 
 AI Note:
-The school system is active. You can monitor students, parents, teachers, assignments, attendance, fees, and announcements directly from the admin dashboard.
+The school system is active. You can monitor students, parents, teachers, assignments, attendance, marks, fees, and announcements directly from the admin dashboard.
 ''';
   }
 
@@ -244,9 +246,53 @@ Announcements are being used. Make sure important school updates are targeted to
 ''';
   }
 
+  Future<String> generateMarksSummary() async {
+    final snapshot = await firestore.collection('marks').get();
+
+    if (snapshot.docs.isEmpty) {
+      return 'No marks found yet. Teachers need to add marks before I can analyze academic performance.';
+    }
+
+    double total = 0;
+    int count = 0;
+    int weak = 0;
+    int good = 0;
+
+    for (final doc in snapshot.docs) {
+      final data = doc.data();
+      final mark = double.tryParse((data['mark'] ?? 0).toString()) ?? 0;
+
+      total += mark;
+      count++;
+
+      if (mark < 10) {
+        weak++;
+      }
+
+      if (mark >= 14) {
+        good++;
+      }
+    }
+
+    final average = count == 0 ? 0 : total / count;
+
+    return '''
+Marks Summary:
+
+Total mark records: $count
+Average mark: ${average.toStringAsFixed(2)}/20
+Good records: $good
+Weak records: $weak
+
+AI Note:
+${average >= 14 ? 'Academic performance looks good overall.' : average >= 10 ? 'Academic performance is average and needs continued revision support.' : 'Academic performance needs attention. Teachers should support weak students and contact parents where necessary.'}
+''';
+  }
+
   Future<String> generateMonthlyReport() async {
     final dashboard = await generateDashboardSummary();
     final attendance = await generateAttendanceSummary();
+    final marks = await generateMarksSummary();
     final fees = await generateFeesSummary();
     final assignments = await generateAssignmentSummary();
     final announcements = await generateAnnouncementsSummary();
@@ -258,6 +304,8 @@ $dashboard
 
 $attendance
 
+$marks
+
 $fees
 
 $assignments
@@ -265,7 +313,7 @@ $assignments
 $announcements
 
 Final AI Recommendation:
-The admin should keep monitoring attendance, unpaid fees, assignment submissions, and announcements. The more teachers and parents use the platform, the more accurate the school report becomes.
+The admin should keep monitoring attendance, academic performance, unpaid fees, assignment submissions, and announcements. The more teachers and parents use the platform, the more accurate the report becomes.
 ''';
   }
 
@@ -278,6 +326,12 @@ The admin should keep monitoring attendance, unpaid fees, assignment submissions
 
     if (lower.contains('attendance') || lower.contains('absence')) {
       return generateAttendanceSummary();
+    }
+
+    if (lower.contains('mark') ||
+        lower.contains('result') ||
+        lower.contains('performance')) {
+      return generateMarksSummary();
     }
 
     if (lower.contains('fee') ||
@@ -311,6 +365,7 @@ I can help with school data from your database.
 Try asking:
 - Generate monthly report
 - Summarize attendance
+- Summarize marks
 - Summarize fees
 - Summarize assignments
 - Summarize announcements
@@ -358,16 +413,57 @@ Try asking:
     }
   }
 
+  Widget pngIconBox({
+    required String imagePath,
+    required IconData fallbackIcon,
+    Color color = AppColors.primaryBlue,
+    double size = 44,
+    double padding = 9,
+  }) {
+    return Container(
+      height: size,
+      width: size,
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(size * 0.36),
+      ),
+      child: Padding(
+        padding: EdgeInsets.all(padding),
+        child: Image.asset(
+          imagePath,
+          fit: BoxFit.contain,
+          errorBuilder: (context, error, stackTrace) {
+            return Icon(
+              fallbackIcon,
+              color: color,
+              size: size * 0.52,
+            );
+          },
+        ),
+      ),
+    );
+  }
+
   Widget quickAction({
     required String text,
     required IconData icon,
+    required String imagePath,
   }) {
     return ActionChip(
-      avatar: Icon(
-        icon,
-        size: 18,
-        color: AppColors.primaryBlue,
+      avatar: Image.asset(
+        imagePath,
+        height: 18,
+        width: 18,
+        errorBuilder: (context, error, stackTrace) {
+          return Icon(
+            icon,
+            size: 18,
+            color: AppColors.primaryBlue,
+          );
+        },
       ),
+      backgroundColor: AppColors.white,
+      side: const BorderSide(color: AppColors.border),
       label: Text(text),
       onPressed: isLoading
           ? null
@@ -425,47 +521,151 @@ Try asking:
           top: BorderSide(color: AppColors.border),
         ),
       ),
+      child: SafeArea(
+        top: false,
+        child: Row(
+          children: [
+            Expanded(
+              child: TextField(
+                controller: messageController,
+                minLines: 1,
+                maxLines: 4,
+                decoration: const InputDecoration(
+                  hintText: 'Ask the AI assistant...',
+                  prefixIcon: Icon(Icons.smart_toy_outlined),
+                ),
+                onSubmitted: sendMessage,
+              ),
+            ),
+            const SizedBox(width: 8),
+            SizedBox(
+              height: 50,
+              width: 50,
+              child: ElevatedButton(
+                onPressed: isLoading
+                    ? null
+                    : () {
+                        sendMessage(messageController.text);
+                      },
+                style: ElevatedButton.styleFrom(
+                  padding: EdgeInsets.zero,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                ),
+                child: isLoading
+                    ? const SizedBox(
+                        height: 20,
+                        width: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: AppColors.white,
+                        ),
+                      )
+                    : const Icon(Icons.send_outlined),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget headerCard() {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(18, 18, 18, 10),
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [
+            AppColors.primaryBlue,
+            AppColors.darkBlue,
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(26),
+      ),
       child: Row(
         children: [
-          Expanded(
-            child: TextField(
-              controller: messageController,
-              minLines: 1,
-              maxLines: 4,
-              decoration: const InputDecoration(
-                hintText: 'Ask the AI assistant...',
-                prefixIcon: Icon(Icons.smart_toy_outlined),
+          Container(
+            height: 58,
+            width: 58,
+            decoration: BoxDecoration(
+              color: AppColors.white.withValues(alpha: 0.16),
+              borderRadius: BorderRadius.circular(22),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Image.asset(
+                'assets/icons/ai_assistant.png',
+                fit: BoxFit.contain,
+                errorBuilder: (context, error, stackTrace) {
+                  return const Icon(
+                    Icons.smart_toy_outlined,
+                    color: AppColors.white,
+                    size: 30,
+                  );
+                },
               ),
-              onSubmitted: sendMessage,
             ),
           ),
-          const SizedBox(width: 8),
-          SizedBox(
-            height: 50,
-            width: 50,
-            child: ElevatedButton(
-              onPressed: isLoading
-                  ? null
-                  : () {
-                      sendMessage(messageController.text);
-                    },
-              style: ElevatedButton.styleFrom(
-                padding: EdgeInsets.zero,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Text(
+              'Ask questions about users, attendance, marks, fees, assignments, announcements, and reports.',
+              style: TextStyle(
+                color: AppColors.white.withValues(alpha: 0.90),
+                fontWeight: FontWeight.w700,
+                height: 1.4,
               ),
-              child: isLoading
-                  ? const SizedBox(
-                      height: 20,
-                      width: 20,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: AppColors.white,
-                      ),
-                    )
-                  : const Icon(Icons.send_outlined),
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget quickActionsBar() {
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      padding: const EdgeInsets.fromLTRB(12, 4, 12, 8),
+      child: Row(
+        children: [
+          quickAction(
+            text: 'Generate monthly report',
+            icon: Icons.description_outlined,
+            imagePath: 'assets/icons/ai_report.png',
+          ),
+          const SizedBox(width: 8),
+          quickAction(
+            text: 'Summarize attendance',
+            icon: Icons.fact_check_outlined,
+            imagePath: 'assets/icons/attendance.png',
+          ),
+          const SizedBox(width: 8),
+          quickAction(
+            text: 'Summarize marks',
+            icon: Icons.bar_chart_outlined,
+            imagePath: 'assets/icons/results.png',
+          ),
+          const SizedBox(width: 8),
+          quickAction(
+            text: 'Summarize fees',
+            icon: Icons.account_balance_wallet_outlined,
+            imagePath: 'assets/icons/fees.png',
+          ),
+          const SizedBox(width: 8),
+          quickAction(
+            text: 'Summarize assignments',
+            icon: Icons.assignment_outlined,
+            imagePath: 'assets/icons/assignments.png',
+          ),
+          const SizedBox(width: 8),
+          quickAction(
+            text: 'Summarize announcements',
+            icon: Icons.campaign_outlined,
+            imagePath: 'assets/icons/announcements.png',
           ),
         ],
       ),
@@ -482,38 +682,8 @@ Try asking:
       body: SafeArea(
         child: Column(
           children: [
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
-              child: Row(
-                children: [
-                  quickAction(
-                    text: 'Generate monthly report',
-                    icon: Icons.description_outlined,
-                  ),
-                  const SizedBox(width: 8),
-                  quickAction(
-                    text: 'Summarize attendance',
-                    icon: Icons.fact_check_outlined,
-                  ),
-                  const SizedBox(width: 8),
-                  quickAction(
-                    text: 'Summarize fees',
-                    icon: Icons.account_balance_wallet_outlined,
-                  ),
-                  const SizedBox(width: 8),
-                  quickAction(
-                    text: 'Summarize assignments',
-                    icon: Icons.assignment_outlined,
-                  ),
-                  const SizedBox(width: 8),
-                  quickAction(
-                    text: 'Summarize announcements',
-                    icon: Icons.campaign_outlined,
-                  ),
-                ],
-              ),
-            ),
+            headerCard(),
+            quickActionsBar(),
             Expanded(
               child: ListView.builder(
                 padding: const EdgeInsets.all(18),
