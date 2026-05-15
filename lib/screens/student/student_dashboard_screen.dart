@@ -15,6 +15,7 @@ import '../parent/fees_screen.dart';
 import '../teacher/assignments_screen.dart';
 import '../teacher/attendance_screen.dart';
 import 'results_screen.dart';
+import 'student_group_chat_screen.dart';
 import 'timetable_screen.dart';
 
 class StudentDashboardScreen extends StatefulWidget {
@@ -39,8 +40,8 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
 
   int assignmentsCount = 0;
   int attendanceCount = 0;
-  int feesCount = 0;
   int notificationsCount = 0;
+  int groupChatsCount = 0;
 
   @override
   void initState() {
@@ -78,12 +79,8 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
           .where('studentId', isEqualTo: studentId)
           .get();
 
-      final feesSnapshot = await firestore
-          .collection('fees')
-          .where('studentId', isEqualTo: studentId)
-          .get();
-
       int loadedAssignments = 0;
+      int loadedGroupChats = 0;
 
       if (classId.isNotEmpty) {
         final assignmentsSnapshot = await firestore
@@ -92,6 +89,14 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
             .get();
 
         loadedAssignments = assignmentsSnapshot.docs.length;
+
+        final groupChatsSnapshot = await firestore
+            .collection('student_group_chats')
+            .where('classId', isEqualTo: classId)
+            .where('members', arrayContains: studentId)
+            .get();
+
+        loadedGroupChats = groupChatsSnapshot.docs.length;
       }
 
       final notificationsSnapshot = await firestore
@@ -105,8 +110,8 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
       setState(() {
         assignmentsCount = loadedAssignments;
         attendanceCount = attendanceSnapshot.docs.length;
-        feesCount = feesSnapshot.docs.length;
         notificationsCount = notificationsSnapshot.docs.length;
+        groupChatsCount = loadedGroupChats;
         isLoadingStats = false;
       });
     } catch (_) {
@@ -207,7 +212,7 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
                     ),
                     const SizedBox(height: 6),
                     Text(
-                      'View your timetable, assignments, results, fees, and study support.',
+                      'View your timetable, assignments, results, group chat, and study support.',
                       style: TextStyle(
                         color: AppColors.white.withValues(alpha: 0.85),
                         fontSize: 13,
@@ -263,6 +268,12 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
         'imagePath': 'assets/icons/announcements.png',
       },
       {
+        'title': 'Group Chat',
+        'icon': Icons.groups_2_outlined,
+        'imagePath': 'assets/icons/group_chat.png',
+        'badgeText': groupChatsCount > 0 ? groupChatsCount.toString() : '',
+      },
+      {
         'title': 'AI Study Assistant',
         'icon': Icons.psychology_outlined,
         'imagePath': 'assets/icons/ai_assistant.png',
@@ -299,9 +310,7 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               headerCard(),
-
               const SizedBox(height: 22),
-
               GridView.count(
                 crossAxisCount: 2,
                 shrinkWrap: true,
@@ -323,10 +332,10 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
                     imagePath: 'assets/icons/assignments.png',
                   ),
                   DashboardCard(
-                    title: 'Fees',
-                    value: statValue(feesCount),
-                    icon: Icons.account_balance_wallet_outlined,
-                    imagePath: 'assets/icons/fees.png',
+                    title: 'Group Chats',
+                    value: statValue(groupChatsCount),
+                    icon: Icons.groups_2_outlined,
+                    imagePath: 'assets/icons/group_chat.png',
                   ),
                   DashboardCard(
                     title: 'Unread Notices',
@@ -336,17 +345,13 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
                   ),
                 ],
               ),
-
               const SizedBox(height: 26),
-
               const SectionTitle(
                 title: 'Student Modules',
                 icon: Icons.dashboard_outlined,
                 imagePath: 'assets/icons/modules.png',
               ),
-
               const SizedBox(height: 14),
-
               GridView.builder(
                 itemCount: modules.length,
                 shrinkWrap: true,
@@ -414,6 +419,15 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
                         );
                       }
 
+                      if (title == 'Group Chat') {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const StudentGroupChatScreen(),
+                          ),
+                        );
+                      }
+
                       if (title == 'Notifications') {
                         Navigator.push(
                           context,
@@ -447,7 +461,8 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (_) => const TimetableScreen(role: 'Student'),
+                            builder: (_) =>
+                                const TimetableScreen(role: 'Student'),
                           ),
                         );
                       }
@@ -455,7 +470,6 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
                   );
                 },
               ),
-
               const SizedBox(height: 20),
             ],
           ),
@@ -491,7 +505,7 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
             Navigator.push(
               context,
               MaterialPageRoute(
-                builder: (_) => const NotificationsScreen(role: 'Student'),
+                builder: (_) => const StudentGroupChatScreen(),
               ),
             );
           }
@@ -519,8 +533,8 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
             label: 'Tasks',
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.notifications_outlined),
-            label: 'Notices',
+            icon: Icon(Icons.groups_2_outlined),
+            label: 'Groups',
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.account_circle_outlined),
