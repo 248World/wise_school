@@ -1,8 +1,9 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 import '../../core/constants/app_colors.dart';
+import '../../providers/auth_provider.dart';
 
 class ChildOverviewScreen extends StatefulWidget {
   const ChildOverviewScreen({super.key});
@@ -13,13 +14,13 @@ class ChildOverviewScreen extends StatefulWidget {
 
 class _ChildOverviewScreenState extends State<ChildOverviewScreen> {
   final FirebaseFirestore firestore = FirebaseFirestore.instance;
-  final FirebaseAuth firebaseAuth = FirebaseAuth.instance;
 
   bool isLoading = true;
   bool isRefreshing = false;
   String? errorMessage;
 
   String parentId = '';
+  String parentName = '';
 
   List<Map<String, dynamic>> children = [];
   Map<String, dynamic>? selectedChild;
@@ -27,8 +28,11 @@ class _ChildOverviewScreenState extends State<ChildOverviewScreen> {
   int attendanceTotal = 0;
   int attendancePresent = 0;
   int attendanceAbsent = 0;
+  int attendanceLate = 0;
 
   int marksTotal = 0;
+  int passedSubjects = 0;
+  int weakSubjects = 0;
   double averageMark = 0;
 
   int assignmentsTotal = 0;
@@ -39,6 +43,7 @@ class _ChildOverviewScreenState extends State<ChildOverviewScreen> {
   int feesPaid = 0;
   int feesUnpaid = 0;
   double totalFeesAmount = 0;
+  double paidFeesAmount = 0;
   double unpaidFeesAmount = 0;
 
   int timetableTotal = 0;
@@ -56,9 +61,10 @@ class _ChildOverviewScreenState extends State<ChildOverviewScreen> {
 
   Future<void> loadInitialData() async {
     try {
-      final user = firebaseAuth.currentUser;
+      final authProvider = context.read<AuthProvider>();
 
-      parentId = user?.uid ?? '';
+      parentId = authProvider.userId ?? '';
+      parentName = authProvider.fullName ?? 'Parent';
 
       if (parentId.isEmpty) {
         throw Exception('Parent account not found. Please login again.');
@@ -92,11 +98,6 @@ class _ChildOverviewScreenState extends State<ChildOverviewScreen> {
   }
 
   Future<void> refreshData() async {
-    if (selectedChild == null) {
-      await loadInitialData();
-      return;
-    }
-
     try {
       setState(() {
         isRefreshing = true;
@@ -106,15 +107,20 @@ class _ChildOverviewScreenState extends State<ChildOverviewScreen> {
 
       final selectedChildId = selectedChild?['id'] ?? '';
 
-      if (selectedChildId.toString().isNotEmpty) {
+      if (children.isEmpty) {
+        selectedChild = null;
+        resetStats();
+      } else if (selectedChildId.toString().isNotEmpty) {
         final matchedChild = children.firstWhere(
           (child) => child['id'] == selectedChildId,
-          orElse: () => selectedChild!,
+          orElse: () => children.first,
         );
 
         selectedChild = matchedChild;
-
         await loadChildOverview(matchedChild);
+      } else {
+        selectedChild = children.first;
+        await loadChildOverview(selectedChild!);
       }
 
       if (!mounted) return;
@@ -151,7 +157,8 @@ class _ChildOverviewScreenState extends State<ChildOverviewScreen> {
         'phone': data['phone'] ?? '',
         'classId': data['classId'] ?? '',
         'className': data['className'] ?? '',
-        'profileImageUrl': data['profileImageUrl'] ?? '',
+        'profileImage': data['profileImage'] ?? '',
+        'profileImageUrl': data['profileImageUrl'] ?? data['profileImage'] ?? '',
         'gender': data['gender'] ?? '',
         'city': data['city'] ?? '',
         'address': data['address'] ?? '',
@@ -195,8 +202,11 @@ class _ChildOverviewScreenState extends State<ChildOverviewScreen> {
     attendanceTotal = 0;
     attendancePresent = 0;
     attendanceAbsent = 0;
+    attendanceLate = 0;
 
     marksTotal = 0;
+    passedSubjects = 0;
+    weakSubjects = 0;
     averageMark = 0;
 
     assignmentsTotal = 0;
@@ -207,6 +217,7 @@ class _ChildOverviewScreenState extends State<ChildOverviewScreen> {
     feesPaid = 0;
     feesUnpaid = 0;
     totalFeesAmount = 0;
+    paidFeesAmount = 0;
     unpaidFeesAmount = 0;
 
     timetableTotal = 0;
@@ -230,6 +241,8 @@ class _ChildOverviewScreenState extends State<ChildOverviewScreen> {
         attendancePresent++;
       } else if (status == 'absent') {
         attendanceAbsent++;
+      } else if (status == 'late') {
+        attendanceLate++;
       }
     }
   }
@@ -247,7 +260,8 @@ class _ChildOverviewScreenState extends State<ChildOverviewScreen> {
       return;
     }
 
-    double total = 0;
+    double weightedTotal = 0;
+    double coefficientTotal = 0;
 
     for (final doc in snapshot.docs) {
       final data = doc.data();
@@ -259,10 +273,21 @@ class _ChildOverviewScreenState extends State<ChildOverviewScreen> {
           data['marks'] ??
           0;
 
-      total += parseDouble(markValue);
+      final mark = parseDouble(markValue);
+      final coefficient = parseDouble(data['coefficient'] ?? 1);
+      final safeCoefficient = coefficient <= 0 ? 1 : coefficient;
+
+      weightedTotal += mark * safeCoefficient;
+      coefficientTotal += safeCoefficient;
+
+      if (mark >= 10) {
+        passedSubjects++;
+      } else {
+        weakSubjects++;
+      }
     }
 
-    averageMark = total / marksTotal;
+    averageMark = coefficientTotal == 0 ? 0 : weightedTotal / coefficientTotal;
   }
 
   Future<void> loadAssignmentStats({
@@ -281,19 +306,33 @@ class _ChildOverviewScreenState extends State<ChildOverviewScreen> {
         .where('classId', isEqualTo: classId)
         .get();
 
-    assignmentsTotal = assignmentsSnapshot.docs.length;
+    final assignmentIds = assignmentsSnapshot.docs.map((doc) => doc.id).toSet();
+
+    assignmentsTotal = assignmentIds.length;
+
+    if (assignmentsTotal == 0) {
+      assignmentsSubmitted = 0;
+      assignmentsPending = 0;
+      return;
+    }
 
     final submissionsSnapshot = await firestore
         .collection('assignment_submissions')
         .where('studentId', isEqualTo: studentId)
         .get();
 
-    assignmentsSubmitted = submissionsSnapshot.docs.length;
+    final submittedAssignmentIds = <String>{};
 
-    if (assignmentsSubmitted > assignmentsTotal) {
-      assignmentsSubmitted = assignmentsTotal;
+    for (final doc in submissionsSnapshot.docs) {
+      final data = doc.data();
+      final assignmentId = (data['assignmentId'] ?? '').toString();
+
+      if (assignmentIds.contains(assignmentId)) {
+        submittedAssignmentIds.add(assignmentId);
+      }
     }
 
+    assignmentsSubmitted = submittedAssignmentIds.length;
     assignmentsPending = assignmentsTotal - assignmentsSubmitted;
 
     if (assignmentsPending < 0) {
@@ -312,13 +351,14 @@ class _ChildOverviewScreenState extends State<ChildOverviewScreen> {
     for (final doc in snapshot.docs) {
       final data = doc.data();
 
-      final status = (data['status'] ?? 'Unpaid').toString();
+      final status = (data['status'] ?? 'Unpaid').toString().toLowerCase();
       final amount = parseDouble(data['amount'] ?? 0);
 
       totalFeesAmount += amount;
 
-      if (status == 'Paid') {
+      if (status == 'paid') {
         feesPaid++;
+        paidFeesAmount += amount;
       } else {
         feesUnpaid++;
         unpaidFeesAmount += amount;
@@ -365,7 +405,8 @@ class _ChildOverviewScreenState extends State<ChildOverviewScreen> {
       return '0%';
     }
 
-    final percent = (attendancePresent / attendanceTotal) * 100;
+    final presentWithLate = attendancePresent + attendanceLate;
+    final percent = (presentWithLate / attendanceTotal) * 100;
     return '${percent.toStringAsFixed(0)}%';
   }
 
@@ -376,6 +417,15 @@ class _ChildOverviewScreenState extends State<ChildOverviewScreen> {
 
     final percent = (assignmentsSubmitted / assignmentsTotal) * 100;
     return '${percent.toStringAsFixed(0)}%';
+  }
+
+  String resultStatus() {
+    if (marksTotal == 0) return 'No result yet';
+
+    if (averageMark >= 16) return 'Excellent';
+    if (averageMark >= 14) return 'Good';
+    if (averageMark >= 10) return 'Average';
+    return 'Needs Support';
   }
 
   String generateAiSummary(Map<String, dynamic> child) {
@@ -393,7 +443,7 @@ class _ChildOverviewScreenState extends State<ChildOverviewScreen> {
         'Attendance data is not available yet, so the parent should wait for teacher updates.',
       );
     } else {
-      final percent = (attendancePresent / attendanceTotal) * 100;
+      final percent = ((attendancePresent + attendanceLate) / attendanceTotal) * 100;
 
       if (percent >= 80) {
         summaryParts.add(
@@ -417,15 +467,15 @@ class _ChildOverviewScreenState extends State<ChildOverviewScreen> {
     } else {
       if (averageMark >= 14) {
         summaryParts.add(
-          'Academic performance is strong with an average of ${averageMark.toStringAsFixed(2)}.',
+          'Academic performance is strong with a weighted average of ${averageMark.toStringAsFixed(2)}/20.',
         );
       } else if (averageMark >= 10) {
         summaryParts.add(
-          'Academic performance is acceptable with an average of ${averageMark.toStringAsFixed(2)}, but there is room for improvement.',
+          'Academic performance is acceptable with a weighted average of ${averageMark.toStringAsFixed(2)}/20, but there is room for improvement.',
         );
       } else {
         summaryParts.add(
-          'Academic performance needs support because the average is ${averageMark.toStringAsFixed(2)}.',
+          'Academic performance needs support because the weighted average is ${averageMark.toStringAsFixed(2)}/20.',
         );
       }
     }
@@ -645,9 +695,15 @@ class _ChildOverviewScreenState extends State<ChildOverviewScreen> {
     );
   }
 
-  Color performanceColor(double value) {
-    if (value >= 80 || value >= 14) return AppColors.softGreen;
-    if (value >= 50 || value >= 10) return Colors.orange;
+  Color percentageColor(double value) {
+    if (value >= 80) return AppColors.softGreen;
+    if (value >= 50) return Colors.orange;
+    return AppColors.danger;
+  }
+
+  Color markColor(double value) {
+    if (value >= 14) return AppColors.softGreen;
+    if (value >= 10) return Colors.orange;
     return AppColors.danger;
   }
 
@@ -908,6 +964,14 @@ class _ChildOverviewScreenState extends State<ChildOverviewScreen> {
   }
 
   Widget statsGrid() {
+    final attendanceRate = attendanceTotal == 0
+        ? 0.0
+        : ((attendancePresent + attendanceLate) / attendanceTotal) * 100;
+
+    final assignmentRate = assignmentsTotal == 0
+        ? 0.0
+        : (assignmentsSubmitted / assignmentsTotal) * 100;
+
     return GridView.count(
       crossAxisCount: 2,
       shrinkWrap: true,
@@ -921,23 +985,24 @@ class _ChildOverviewScreenState extends State<ChildOverviewScreen> {
           value: attendancePercentage(),
           icon: Icons.fact_check_outlined,
           imagePath: 'assets/icons/attendance.png',
-          color: performanceColor(attendanceTotal == 0 ? 0 : (attendancePresent / attendanceTotal) * 100),
-          subtitle: '$attendancePresent present / $attendanceTotal total',
+          color: percentageColor(attendanceRate),
+          subtitle:
+              '$attendancePresent present, $attendanceLate late / $attendanceTotal total',
         ),
         statCard(
           title: 'Average Result',
           value: marksTotal == 0 ? '0' : averageMark.toStringAsFixed(2),
           icon: Icons.bar_chart_outlined,
           imagePath: 'assets/icons/results.png',
-          color: performanceColor(averageMark),
-          subtitle: '$marksTotal mark record(s)',
+          color: markColor(averageMark),
+          subtitle: '$marksTotal mark(s) • $passedSubjects passed',
         ),
         statCard(
           title: 'Assignments',
           value: assignmentProgress(),
           icon: Icons.assignment_outlined,
           imagePath: 'assets/icons/assignments.png',
-          color: performanceColor(assignmentsTotal == 0 ? 0 : (assignmentsSubmitted / assignmentsTotal) * 100),
+          color: percentageColor(assignmentRate),
           subtitle: '$assignmentsSubmitted submitted / $assignmentsTotal total',
         ),
         statCard(
@@ -1122,6 +1187,11 @@ class _ChildOverviewScreenState extends State<ChildOverviewScreen> {
             value: child['address'].toString().isEmpty
                 ? 'Not set'
                 : child['address'],
+          ),
+          detailRow(
+            icon: Icons.bar_chart_outlined,
+            label: 'Progress',
+            value: resultStatus(),
           ),
         ],
       ),
