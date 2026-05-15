@@ -18,12 +18,14 @@ class _AddMarksScreenState extends State<AddMarksScreen> {
   bool isLoading = true;
   bool isLoadingStudents = false;
   bool isLoadingSubjects = false;
+  bool isLoadingExistingMarks = false;
   bool isSaving = false;
   String? errorMessage;
 
   List<Map<String, dynamic>> classes = [];
   List<Map<String, dynamic>> subjects = [];
   List<Map<String, dynamic>> students = [];
+  List<Map<String, dynamic>> existingMarks = [];
 
   String currentUserId = '';
   String currentUserName = '';
@@ -39,6 +41,9 @@ class _AddMarksScreenState extends State<AddMarksScreen> {
 
   final Map<String, TextEditingController> markControllers = {};
   final Map<String, TextEditingController> commentControllers = {};
+
+  bool get isAdmin => currentRole == 'Admin';
+  bool get isTeacher => currentRole == 'Teacher';
 
   @override
   void initState() {
@@ -70,14 +75,42 @@ class _AddMarksScreenState extends State<AddMarksScreen> {
       setState(() {
         isLoading = true;
         errorMessage = null;
+        selectedClassId = '';
+        selectedClassName = '';
+        selectedSubjectId = '';
+        selectedSubjectName = '';
+        selectedTeacherId = '';
+        selectedTeacherName = '';
+        selectedCoefficient = 1;
+        subjects = [];
+        students = [];
+        existingMarks = [];
+        clearControllers();
       });
 
       final loadedClasses = await databaseService.getClasses();
 
+      List<Map<String, dynamic>> scopedClasses = loadedClasses;
+
+      if (isTeacher) {
+        scopedClasses = loadedClasses.where((schoolClass) {
+          final teacherId = (schoolClass['teacherId'] ?? '').toString();
+          final teacherName = (schoolClass['teacherName'] ?? '').toString();
+
+          return teacherId == currentUserId || teacherName == currentUserName;
+        }).toList();
+      }
+
+      scopedClasses.sort((a, b) {
+        return (a['className'] ?? '').toString().compareTo(
+              (b['className'] ?? '').toString(),
+            );
+      });
+
       if (!mounted) return;
 
       setState(() {
-        classes = loadedClasses;
+        classes = scopedClasses;
         isLoading = false;
       });
     } catch (error) {
@@ -95,8 +128,10 @@ class _AddMarksScreenState extends State<AddMarksScreen> {
       setState(() {
         isLoadingSubjects = true;
         isLoadingStudents = true;
+        isLoadingExistingMarks = false;
         subjects = [];
         students = [];
+        existingMarks = [];
         selectedSubjectId = '';
         selectedSubjectName = '';
         selectedTeacherId = '';
@@ -108,6 +143,23 @@ class _AddMarksScreenState extends State<AddMarksScreen> {
       final loadedSubjects = await databaseService.getSubjectsByClass(
         classId: classId,
       );
+
+      List<Map<String, dynamic>> scopedSubjects = loadedSubjects;
+
+      if (isTeacher) {
+        scopedSubjects = loadedSubjects.where((subject) {
+          final teacherId = (subject['teacherId'] ?? '').toString();
+          final teacherName = (subject['teacherName'] ?? '').toString();
+
+          return teacherId == currentUserId || teacherName == currentUserName;
+        }).toList();
+      }
+
+      scopedSubjects.sort((a, b) {
+        return (a['subjectName'] ?? '').toString().compareTo(
+              (b['subjectName'] ?? '').toString(),
+            );
+      });
 
       final loadedStudents = await databaseService.getStudentsByClass(
         classId: classId,
@@ -125,7 +177,7 @@ class _AddMarksScreenState extends State<AddMarksScreen> {
       if (!mounted) return;
 
       setState(() {
-        subjects = loadedSubjects;
+        subjects = scopedSubjects;
         students = loadedStudents;
         isLoadingSubjects = false;
         isLoadingStudents = false;
@@ -141,6 +193,70 @@ class _AddMarksScreenState extends State<AddMarksScreen> {
     }
   }
 
+  Future<void> loadExistingMarksForSelectedSubject() async {
+    if (selectedClassId.isEmpty || selectedSubjectId.isEmpty) {
+      return;
+    }
+
+    try {
+      setState(() {
+        isLoadingExistingMarks = true;
+      });
+
+      final loadedMarks = await databaseService.getMarksByClass(
+        classId: selectedClassId,
+      );
+
+      existingMarks = loadedMarks.where((mark) {
+        return mark['subjectId'] == selectedSubjectId;
+      }).toList();
+
+      for (final student in students) {
+        final studentId = student['id'] ?? '';
+
+        if (studentId.toString().isEmpty) {
+          continue;
+        }
+
+        Map<String, dynamic>? savedMark;
+
+        try {
+          savedMark = existingMarks.firstWhere(
+            (mark) => mark['studentId'] == studentId,
+          );
+        } catch (_) {
+          savedMark = null;
+        }
+
+        if (savedMark != null) {
+          final markValue = parseNumber(savedMark['mark']);
+          final commentValue = savedMark['comment'] ?? '';
+
+          markControllers[studentId]?.text =
+              markValue.toStringAsFixed(markValue % 1 == 0 ? 0 : 1);
+          commentControllers[studentId]?.text = commentValue.toString();
+        } else {
+          markControllers[studentId]?.clear();
+          commentControllers[studentId]?.clear();
+        }
+      }
+
+      if (!mounted) return;
+
+      setState(() {
+        isLoadingExistingMarks = false;
+      });
+    } catch (error) {
+      if (!mounted) return;
+
+      setState(() {
+        isLoadingExistingMarks = false;
+      });
+
+      showSnackBar(error.toString().replaceAll('Exception: ', ''));
+    }
+  }
+
   void clearControllers() {
     for (final controller in markControllers.values) {
       controller.dispose();
@@ -152,6 +268,13 @@ class _AddMarksScreenState extends State<AddMarksScreen> {
 
     markControllers.clear();
     commentControllers.clear();
+  }
+
+  double parseNumber(dynamic value) {
+    if (value is int) return value.toDouble();
+    if (value is double) return value;
+
+    return double.tryParse(value.toString()) ?? 0;
   }
 
   double parseCoefficient(dynamic value) {
@@ -209,6 +332,8 @@ class _AddMarksScreenState extends State<AddMarksScreen> {
         selectedTeacherName = currentUserName;
       }
     });
+
+    loadExistingMarksForSelectedSubject();
   }
 
   String gradeFromMark(double mark) {
@@ -238,6 +363,11 @@ class _AddMarksScreenState extends State<AddMarksScreen> {
 
     if (students.isEmpty) {
       showSnackBar('No students found for this class');
+      return;
+    }
+
+    if (isTeacher && selectedTeacherId != currentUserId) {
+      showSnackBar('You can only save marks for subjects assigned to you.');
       return;
     }
 
@@ -293,19 +423,13 @@ class _AddMarksScreenState extends State<AddMarksScreen> {
         marksData: marksData,
       );
 
+      await loadExistingMarksForSelectedSubject();
+
       if (!mounted) return;
 
       setState(() {
         isSaving = false;
       });
-
-      for (final controller in markControllers.values) {
-        controller.clear();
-      }
-
-      for (final controller in commentControllers.values) {
-        controller.clear();
-      }
 
       showSnackBar('Marks saved successfully');
     } catch (error) {
@@ -354,7 +478,7 @@ class _AddMarksScreenState extends State<AddMarksScreen> {
     String title = 'Add Marks';
     String subtitle = 'Select a class, subject, and enter student marks.';
 
-    if (currentRole == 'Admin') {
+    if (isAdmin) {
       title = 'Manage Student Marks';
       subtitle = 'Review and manage marks for students by class and subject.';
     }
@@ -540,6 +664,15 @@ class _AddMarksScreenState extends State<AddMarksScreen> {
   }
 
   Widget emptyClassState() {
+    if (isTeacher) {
+      return emptyStateBox(
+        title: 'No assigned classes',
+        message:
+            'No class is assigned to your teacher account yet. Ask Admin to assign you to a class.',
+        icon: Icons.class_outlined,
+      );
+    }
+
     return emptyStateBox(
       title: 'No classes yet',
       message: 'No classes found yet. Create a class first from Admin Dashboard.',
@@ -560,6 +693,9 @@ class _AddMarksScreenState extends State<AddMarksScreen> {
     final studentId = student['id'] ?? '';
     final studentName = student['fullName'] ?? 'Unknown Student';
     final color = markColorFromText(studentId);
+    final hasExistingMark = existingMarks.any((mark) {
+      return mark['studentId'] == studentId;
+    });
 
     return Material(
       color: Colors.transparent,
@@ -617,17 +753,17 @@ class _AddMarksScreenState extends State<AddMarksScreen> {
                       ),
                     ),
                     smallStatusChip(
-                      text: selectedClassName.isEmpty
-                          ? 'No class'
-                          : selectedClassName,
-                      color: AppColors.primaryBlue,
+                      text: hasExistingMark ? 'Updating' : 'New',
+                      color: hasExistingMark ? Colors.orange : AppColors.softGreen,
                     ),
                   ],
                 ),
                 const SizedBox(height: 16),
                 TextField(
                   controller: markControllers[studentId],
-                  keyboardType: TextInputType.number,
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
                   onChanged: (_) {
                     setState(() {});
                   },
@@ -685,7 +821,7 @@ class _AddMarksScreenState extends State<AddMarksScreen> {
           const SizedBox(width: 12),
           Expanded(
             child: Text(
-              'Subject: $selectedSubjectName • Coefficient: ${selectedCoefficient.toStringAsFixed(selectedCoefficient % 1 == 0 ? 0 : 1)}',
+              'Subject: $selectedSubjectName • Teacher: $selectedTeacherName • Coefficient: ${selectedCoefficient.toStringAsFixed(selectedCoefficient % 1 == 0 ? 0 : 1)}',
               style: const TextStyle(
                 color: AppColors.textDark,
                 fontWeight: FontWeight.w700,
@@ -712,7 +848,7 @@ class _AddMarksScreenState extends State<AddMarksScreen> {
   Widget build(BuildContext context) {
     String title = 'Add Marks';
 
-    if (currentRole == 'Admin') {
+    if (isAdmin) {
       title = 'Manage Student Marks';
     }
 
@@ -800,9 +936,11 @@ class _AddMarksScreenState extends State<AddMarksScreen> {
                                     subjects.isEmpty &&
                                     !isLoadingSubjects) ...[
                                   const SizedBox(height: 10),
-                                  const Text(
-                                    'No subjects found for this class. Create a subject first.',
-                                    style: TextStyle(
+                                  Text(
+                                    isTeacher
+                                        ? 'No subjects assigned to you for this class.'
+                                        : 'No subjects found for this class. Create a subject first.',
+                                    style: const TextStyle(
                                       color: AppColors.textGrey,
                                       fontSize: 13,
                                     ),
@@ -821,7 +959,9 @@ class _AddMarksScreenState extends State<AddMarksScreen> {
                                 icon: Icons.class_outlined,
                               ),
                             )
-                          else if (isLoadingStudents || isLoadingSubjects)
+                          else if (isLoadingStudents ||
+                              isLoadingSubjects ||
+                              isLoadingExistingMarks)
                             const Expanded(
                               child: Center(
                                 child: CircularProgressIndicator(),
@@ -838,6 +978,10 @@ class _AddMarksScreenState extends State<AddMarksScreen> {
                                   await loadSubjectsAndStudents(
                                     selectedClassId,
                                   );
+
+                                  if (selectedSubjectId.isNotEmpty) {
+                                    await loadExistingMarksForSelectedSubject();
+                                  }
                                 },
                                 child: ListView.separated(
                                   padding:
