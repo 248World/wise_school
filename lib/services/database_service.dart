@@ -27,16 +27,23 @@ class DatabaseService {
       return {
         'id': doc.id,
         'fullName': data['fullName'] ?? '',
+        'userName': data['userName'] ?? '',
         'email': data['email'] ?? '',
         'phone': data['phone'] ?? '',
         'role': data['role'] ?? 'Student',
         'profileImage': data['profileImage'] ?? '',
+        'profileImageUrl': data['profileImageUrl'] ?? data['profileImage'] ?? '',
+        'gender': data['gender'] ?? '',
+        'city': data['city'] ?? '',
+        'address': data['address'] ?? '',
+        'about': data['about'] ?? '',
         'isActive': data['isActive'] ?? true,
         'classId': data['classId'] ?? '',
         'className': data['className'] ?? '',
         'parentId': data['parentId'] ?? '',
         'parentName': data['parentName'] ?? '',
         'createdAt': data['createdAt'],
+        'updatedAt': data['updatedAt'],
       };
     }).toList();
   }
@@ -48,7 +55,7 @@ class DatabaseService {
         .where('isActive', isEqualTo: true)
         .get();
 
-    return snapshot.docs.map((doc) {
+    final parents = snapshot.docs.map((doc) {
       final data = doc.data();
 
       return {
@@ -57,9 +64,19 @@ class DatabaseService {
         'email': data['email'] ?? '',
         'phone': data['phone'] ?? '',
         'role': data['role'] ?? 'Parent',
+        'profileImageUrl': data['profileImageUrl'] ?? data['profileImage'] ?? '',
         'isActive': data['isActive'] ?? true,
+        'createdAt': data['createdAt'],
       };
     }).toList();
+
+    parents.sort((a, b) {
+      return (a['fullName'] ?? '').toString().compareTo(
+            (b['fullName'] ?? '').toString(),
+          );
+    });
+
+    return parents;
   }
 
   Future<List<Map<String, dynamic>>> getStudentsByParent({
@@ -72,7 +89,7 @@ class DatabaseService {
         .where('isActive', isEqualTo: true)
         .get();
 
-    return snapshot.docs.map((doc) {
+    final students = snapshot.docs.map((doc) {
       final data = doc.data();
 
       return {
@@ -81,6 +98,7 @@ class DatabaseService {
         'email': data['email'] ?? '',
         'phone': data['phone'] ?? '',
         'role': data['role'] ?? 'Student',
+        'profileImageUrl': data['profileImageUrl'] ?? data['profileImage'] ?? '',
         'classId': data['classId'] ?? '',
         'className': data['className'] ?? '',
         'parentId': data['parentId'] ?? '',
@@ -88,6 +106,14 @@ class DatabaseService {
         'isActive': data['isActive'] ?? true,
       };
     }).toList();
+
+    students.sort((a, b) {
+      return (a['fullName'] ?? '').toString().compareTo(
+            (b['fullName'] ?? '').toString(),
+          );
+    });
+
+    return students;
   }
 
   Future<void> updateUserStatus({
@@ -96,6 +122,7 @@ class DatabaseService {
   }) async {
     await _firestore.collection('users').doc(userId).update({
       'isActive': isActive,
+      'updatedAt': FieldValue.serverTimestamp(),
     });
 
     final userDoc = await _firestore.collection('users').doc(userId).get();
@@ -128,6 +155,7 @@ class DatabaseService {
     await userRef.update({
       'classId': classId,
       'className': className,
+      'updatedAt': FieldValue.serverTimestamp(),
     });
 
     if (oldClassId.isNotEmpty && oldClassId != classId) {
@@ -145,6 +173,7 @@ class DatabaseService {
     await _firestore.collection('users').doc(userId).update({
       'parentId': parentId,
       'parentName': parentName,
+      'updatedAt': FieldValue.serverTimestamp(),
     });
   }
 
@@ -162,9 +191,13 @@ class DatabaseService {
         .where('isActive', isEqualTo: true)
         .get();
 
-    await _firestore.collection('classes').doc(classId).update({
-      'studentCount': studentsSnapshot.docs.length,
-    });
+    await _firestore.collection('classes').doc(classId).set(
+      {
+        'studentCount': studentsSnapshot.docs.length,
+        'updatedAt': FieldValue.serverTimestamp(),
+      },
+      SetOptions(merge: true),
+    );
   }
 
   Future<List<Map<String, dynamic>>> getClasses() async {
@@ -184,6 +217,7 @@ class DatabaseService {
         'teacherName': data['teacherName'] ?? '',
         'studentCount': data['studentCount'] ?? 0,
         'createdAt': data['createdAt'],
+        'updatedAt': data['updatedAt'],
       };
     }).toList();
   }
@@ -196,7 +230,7 @@ class DatabaseService {
         .where('teacherName', isEqualTo: teacherName)
         .get();
 
-    return snapshot.docs.map((doc) {
+    final classes = snapshot.docs.map((doc) {
       final data = doc.data();
 
       return {
@@ -207,8 +241,17 @@ class DatabaseService {
         'teacherName': data['teacherName'] ?? '',
         'studentCount': data['studentCount'] ?? 0,
         'createdAt': data['createdAt'],
+        'updatedAt': data['updatedAt'],
       };
     }).toList();
+
+    classes.sort((a, b) {
+      return (a['className'] ?? '').toString().compareTo(
+            (b['className'] ?? '').toString(),
+          );
+    });
+
+    return classes;
   }
 
   Future<void> addClass({
@@ -224,13 +267,32 @@ class DatabaseService {
       'teacherName': teacherName,
       'studentCount': 0,
       'createdAt': FieldValue.serverTimestamp(),
+      'updatedAt': FieldValue.serverTimestamp(),
     });
   }
 
   Future<void> deleteClass({
     required String classId,
   }) async {
-    await _firestore.collection('classes').doc(classId).delete();
+    final batch = _firestore.batch();
+
+    batch.delete(_firestore.collection('classes').doc(classId));
+
+    final studentsSnapshot = await _firestore
+        .collection('users')
+        .where('role', isEqualTo: 'Student')
+        .where('classId', isEqualTo: classId)
+        .get();
+
+    for (final studentDoc in studentsSnapshot.docs) {
+      batch.update(studentDoc.reference, {
+        'classId': '',
+        'className': '',
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+    }
+
+    await batch.commit();
   }
 
   Future<List<Map<String, dynamic>>> getSubjects() async {
@@ -251,6 +313,7 @@ class DatabaseService {
         'teacherName': data['teacherName'] ?? '',
         'coefficient': data['coefficient'] ?? 1,
         'createdAt': data['createdAt'],
+        'updatedAt': data['updatedAt'],
       };
     }).toList();
   }
@@ -263,7 +326,7 @@ class DatabaseService {
         .where('classId', isEqualTo: classId)
         .get();
 
-    return snapshot.docs.map((doc) {
+    final subjects = snapshot.docs.map((doc) {
       final data = doc.data();
 
       return {
@@ -275,8 +338,17 @@ class DatabaseService {
         'teacherName': data['teacherName'] ?? '',
         'coefficient': data['coefficient'] ?? 1,
         'createdAt': data['createdAt'],
+        'updatedAt': data['updatedAt'],
       };
     }).toList();
+
+    subjects.sort((a, b) {
+      return (a['subjectName'] ?? '').toString().compareTo(
+            (b['subjectName'] ?? '').toString(),
+          );
+    });
+
+    return subjects;
   }
 
   Future<void> addSubject({
@@ -295,6 +367,7 @@ class DatabaseService {
       'teacherName': teacherName,
       'coefficient': coefficient,
       'createdAt': FieldValue.serverTimestamp(),
+      'updatedAt': FieldValue.serverTimestamp(),
     });
   }
 
@@ -314,7 +387,7 @@ class DatabaseService {
         .where('isActive', isEqualTo: true)
         .get();
 
-    return snapshot.docs.map((doc) {
+    final students = snapshot.docs.map((doc) {
       final data = doc.data();
 
       return {
@@ -323,6 +396,7 @@ class DatabaseService {
         'email': data['email'] ?? '',
         'phone': data['phone'] ?? '',
         'role': data['role'] ?? 'Student',
+        'profileImageUrl': data['profileImageUrl'] ?? data['profileImage'] ?? '',
         'classId': data['classId'] ?? '',
         'className': data['className'] ?? '',
         'parentId': data['parentId'] ?? '',
@@ -330,6 +404,14 @@ class DatabaseService {
         'isActive': data['isActive'] ?? true,
       };
     }).toList();
+
+    students.sort((a, b) {
+      return (a['fullName'] ?? '').toString().compareTo(
+            (b['fullName'] ?? '').toString(),
+          );
+    });
+
+    return students;
   }
 
   Future<void> saveAttendance({
@@ -339,20 +421,36 @@ class DatabaseService {
     required List<Map<String, dynamic>> attendanceData,
   }) async {
     final batch = _firestore.batch();
+    final now = DateTime.now();
+    final dateKey =
+        '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
 
     for (final item in attendanceData) {
-      final docRef = _firestore.collection('attendance').doc();
+      final studentId = item['studentId'] ?? '';
 
-      batch.set(docRef, {
-        'studentId': item['studentId'],
-        'studentName': item['studentName'],
-        'classId': classId,
-        'className': className,
-        'status': item['status'],
-        'markedBy': markedBy,
-        'date': DateTime.now().toIso8601String(),
-        'createdAt': FieldValue.serverTimestamp(),
-      });
+      if (studentId.toString().isEmpty) {
+        continue;
+      }
+
+      final docId = '${dateKey}_${classId}_$studentId';
+      final docRef = _firestore.collection('attendance').doc(docId);
+
+      batch.set(
+        docRef,
+        {
+          'studentId': studentId,
+          'studentName': item['studentName'] ?? '',
+          'classId': classId,
+          'className': className,
+          'status': item['status'] ?? 'Present',
+          'markedBy': markedBy,
+          'date': now.toIso8601String(),
+          'dateKey': dateKey,
+          'createdAt': FieldValue.serverTimestamp(),
+          'updatedAt': FieldValue.serverTimestamp(),
+        },
+        SetOptions(merge: true),
+      );
     }
 
     await batch.commit();
@@ -379,9 +477,25 @@ class DatabaseService {
         'status': data['status'] ?? '',
         'markedBy': data['markedBy'] ?? '',
         'date': data['date'] ?? '',
+        'dateKey': data['dateKey'] ?? '',
         'createdAt': data['createdAt'],
+        'updatedAt': data['updatedAt'],
       };
     }).toList();
+  }
+
+  String gradeFromMark(double mark) {
+    if (mark >= 16) return 'Excellent';
+    if (mark >= 14) return 'Good';
+    if (mark >= 10) return 'Pass';
+    return 'Weak';
+  }
+
+  String progressFromMark(double mark) {
+    if (mark >= 16) return 'Excellent';
+    if (mark >= 14) return 'Good';
+    if (mark >= 10) return 'Average';
+    return 'Needs Support';
   }
 
   Future<void> saveMarks({
@@ -396,22 +510,60 @@ class DatabaseService {
     final batch = _firestore.batch();
 
     for (final item in marksData) {
-      final docRef = _firestore.collection('marks').doc();
+      final studentId = item['studentId'] ?? '';
 
-      batch.set(docRef, {
-        'studentId': item['studentId'],
-        'studentName': item['studentName'],
-        'classId': classId,
-        'className': className,
-        'subjectId': subjectId,
-        'subjectName': subjectName,
-        'teacherId': teacherId,
-        'teacherName': teacherName,
-        'mark': item['mark'],
-        'grade': item['grade'],
-        'comment': item['comment'],
-        'createdAt': FieldValue.serverTimestamp(),
-      });
+      if (studentId.toString().isEmpty) {
+        continue;
+      }
+
+      final markValue = item['mark'];
+
+      double mark = 0;
+
+      if (markValue is int) {
+        mark = markValue.toDouble();
+      } else if (markValue is double) {
+        mark = markValue;
+      } else {
+        mark = double.tryParse(markValue.toString()) ?? 0;
+      }
+
+      final coefficientValue = item['coefficient'];
+
+      double coefficient = 1;
+
+      if (coefficientValue is int) {
+        coefficient = coefficientValue.toDouble();
+      } else if (coefficientValue is double) {
+        coefficient = coefficientValue;
+      } else {
+        coefficient = double.tryParse(coefficientValue.toString()) ?? 1;
+      }
+
+      final docId = '${studentId}_$subjectId';
+      final docRef = _firestore.collection('marks').doc(docId);
+
+      batch.set(
+        docRef,
+        {
+          'studentId': studentId,
+          'studentName': item['studentName'] ?? '',
+          'classId': classId,
+          'className': className,
+          'subjectId': subjectId,
+          'subjectName': subjectName,
+          'teacherId': teacherId,
+          'teacherName': teacherName,
+          'mark': mark,
+          'grade': item['grade'] ?? gradeFromMark(mark),
+          'progress': item['progress'] ?? progressFromMark(mark),
+          'comment': item['comment'] ?? '',
+          'coefficient': coefficient,
+          'createdAt': FieldValue.serverTimestamp(),
+          'updatedAt': FieldValue.serverTimestamp(),
+        },
+        SetOptions(merge: true),
+      );
     }
 
     await batch.commit();
@@ -425,7 +577,7 @@ class DatabaseService {
         .where('studentId', isEqualTo: studentId)
         .get();
 
-    return snapshot.docs.map((doc) {
+    final marks = snapshot.docs.map((doc) {
       final data = doc.data();
 
       return {
@@ -440,10 +592,21 @@ class DatabaseService {
         'teacherName': data['teacherName'] ?? '',
         'mark': data['mark'] ?? 0,
         'grade': data['grade'] ?? '',
+        'progress': data['progress'] ?? '',
         'comment': data['comment'] ?? '',
+        'coefficient': data['coefficient'] ?? 1,
         'createdAt': data['createdAt'],
+        'updatedAt': data['updatedAt'],
       };
     }).toList();
+
+    marks.sort((a, b) {
+      return (a['subjectName'] ?? '').toString().compareTo(
+            (b['subjectName'] ?? '').toString(),
+          );
+    });
+
+    return marks;
   }
 
   Future<List<Map<String, dynamic>>> getMarksByClass({
@@ -454,7 +617,7 @@ class DatabaseService {
         .where('classId', isEqualTo: classId)
         .get();
 
-    return snapshot.docs.map((doc) {
+    final marks = snapshot.docs.map((doc) {
       final data = doc.data();
 
       return {
@@ -469,9 +632,20 @@ class DatabaseService {
         'teacherName': data['teacherName'] ?? '',
         'mark': data['mark'] ?? 0,
         'grade': data['grade'] ?? '',
+        'progress': data['progress'] ?? '',
         'comment': data['comment'] ?? '',
+        'coefficient': data['coefficient'] ?? 1,
         'createdAt': data['createdAt'],
+        'updatedAt': data['updatedAt'],
       };
     }).toList();
+
+    marks.sort((a, b) {
+      return (a['studentName'] ?? '').toString().compareTo(
+            (b['studentName'] ?? '').toString(),
+          );
+    });
+
+    return marks;
   }
 }
