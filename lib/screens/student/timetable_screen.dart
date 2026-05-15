@@ -136,6 +136,12 @@ class _TimetableScreenState extends State<TimetableScreen> {
         'teacherName': data['teacherName'] ?? '',
       };
     }).toList();
+
+    classes.sort((a, b) {
+      return (a['className'] ?? '').toString().compareTo(
+            (b['className'] ?? '').toString(),
+          );
+    });
   }
 
   Future<void> loadTeachers() async {
@@ -154,6 +160,12 @@ class _TimetableScreenState extends State<TimetableScreen> {
         'email': data['email'] ?? '',
       };
     }).toList();
+
+    teachers.sort((a, b) {
+      return (a['fullName'] ?? '').toString().compareTo(
+            (b['fullName'] ?? '').toString(),
+          );
+    });
   }
 
   Future<void> loadAllSubjects() async {
@@ -169,18 +181,24 @@ class _TimetableScreenState extends State<TimetableScreen> {
         'className': data['className'] ?? '',
         'teacherId': data['teacherId'] ?? '',
         'teacherName': data['teacherName'] ?? '',
-        'coefficient': data['coefficient'] ?? '',
+        'coefficient': data['coefficient'] ?? 1,
       };
     }).toList();
+
+    subjects.sort((a, b) {
+      return (a['subjectName'] ?? '').toString().compareTo(
+            (b['subjectName'] ?? '').toString(),
+          );
+    });
   }
 
-  Future<void> loadSubjectsByClass(String classId) async {
+  Future<List<Map<String, dynamic>>> getSubjectsByClass(String classId) async {
     final snapshot = await firestore
         .collection('subjects')
         .where('classId', isEqualTo: classId)
         .get();
 
-    subjects = snapshot.docs.map((doc) {
+    final loadedSubjects = snapshot.docs.map((doc) {
       final data = doc.data();
 
       return {
@@ -190,9 +208,21 @@ class _TimetableScreenState extends State<TimetableScreen> {
         'className': data['className'] ?? '',
         'teacherId': data['teacherId'] ?? '',
         'teacherName': data['teacherName'] ?? '',
-        'coefficient': data['coefficient'] ?? '',
+        'coefficient': data['coefficient'] ?? 1,
       };
     }).toList();
+
+    loadedSubjects.sort((a, b) {
+      return (a['subjectName'] ?? '').toString().compareTo(
+            (b['subjectName'] ?? '').toString(),
+          );
+    });
+
+    return loadedSubjects;
+  }
+
+  Future<void> loadSubjectsByClass(String classId) async {
+    subjects = await getSubjectsByClass(classId);
   }
 
   Future<void> loadAllTimetables() async {
@@ -313,6 +343,8 @@ class _TimetableScreenState extends State<TimetableScreen> {
       'teacherName': data['teacherName'] ?? '',
       'room': data['room'] ?? '',
       'note': data['note'] ?? '',
+      'createdBy': data['createdBy'] ?? '',
+      'createdByName': data['createdByName'] ?? '',
       'createdAt': data['createdAt'],
       'updatedAt': data['updatedAt'],
     };
@@ -341,7 +373,63 @@ class _TimetableScreenState extends State<TimetableScreen> {
     return '$hour:$minute';
   }
 
-  Future<void> saveTimetable() async {
+  TimeOfDay timeFromString(String value, TimeOfDay fallback) {
+    final parts = value.split(':');
+
+    if (parts.length != 2) {
+      return fallback;
+    }
+
+    final hour = int.tryParse(parts[0]);
+    final minute = int.tryParse(parts[1]);
+
+    if (hour == null || minute == null) {
+      return fallback;
+    }
+
+    return TimeOfDay(hour: hour, minute: minute);
+  }
+
+  Future<bool> hasTimeConflict({
+    required String? editingId,
+    required String classId,
+    required String teacherId,
+    required String day,
+    required int startMinutes,
+    required int endMinutes,
+  }) async {
+    final snapshot = await firestore
+        .collection('timetables')
+        .where('day', isEqualTo: day)
+        .get();
+
+    for (final doc in snapshot.docs) {
+      if (editingId != null && doc.id == editingId) {
+        continue;
+      }
+
+      final data = doc.data();
+      final existingClassId = data['classId'] ?? '';
+      final existingTeacherId = data['teacherId'] ?? '';
+      final existingStart = data['startMinutes'] ?? 0;
+      final existingEnd = data['endMinutes'] ?? 0;
+
+      final overlaps = startMinutes < existingEnd && endMinutes > existingStart;
+      final sameClass = existingClassId == classId;
+      final sameTeacher =
+          teacherId.toString().isNotEmpty && existingTeacherId == teacherId;
+
+      if (overlaps && (sameClass || sameTeacher)) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  Future<void> saveTimetable({
+    String? editingId,
+  }) async {
     final room = roomController.text.trim();
     final note = noteController.text.trim();
 
@@ -368,12 +456,28 @@ class _TimetableScreenState extends State<TimetableScreen> {
       return;
     }
 
+    final conflict = await hasTimeConflict(
+      editingId: editingId,
+      classId: selectedClassId,
+      teacherId: selectedTeacherId,
+      day: selectedDay,
+      startMinutes: startMinutes,
+      endMinutes: endMinutes,
+    );
+
+    if (conflict) {
+      showSnackBar(
+        'Time conflict found. This class or teacher already has a timetable at that time.',
+      );
+      return;
+    }
+
     try {
       setState(() {
         isSaving = true;
       });
 
-      await firestore.collection('timetables').add({
+      final data = {
         'day': selectedDay,
         'dayIndex': days.indexOf(selectedDay),
         'startTime': formatTimeOfDay(selectedStartTime),
@@ -388,11 +492,19 @@ class _TimetableScreenState extends State<TimetableScreen> {
         'teacherName': selectedTeacherName,
         'room': room,
         'note': note,
-        'createdBy': currentUserId,
-        'createdByName': currentUserName,
-        'createdAt': FieldValue.serverTimestamp(),
         'updatedAt': FieldValue.serverTimestamp(),
-      });
+      };
+
+      if (editingId == null) {
+        await firestore.collection('timetables').add({
+          ...data,
+          'createdBy': currentUserId,
+          'createdByName': currentUserName,
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+      } else {
+        await firestore.collection('timetables').doc(editingId).update(data);
+      }
 
       if (!mounted) return;
 
@@ -408,7 +520,11 @@ class _TimetableScreenState extends State<TimetableScreen> {
         isSaving = false;
       });
 
-      showSnackBar('Timetable created successfully');
+      showSnackBar(
+        editingId == null
+            ? 'Timetable created successfully'
+            : 'Timetable updated successfully',
+      );
     } catch (error) {
       if (!mounted) return;
 
@@ -489,6 +605,27 @@ class _TimetableScreenState extends State<TimetableScreen> {
     selectedEndTime = const TimeOfDay(hour: 10, minute: 0);
     roomController.clear();
     noteController.clear();
+    subjects = [];
+  }
+
+  void prepareEditForm(Map<String, dynamic> item) {
+    selectedDay = item['day'] ?? 'Monday';
+    selectedClassId = item['classId'] ?? '';
+    selectedClassName = item['className'] ?? '';
+    selectedSubjectId = item['subjectId'] ?? '';
+    selectedSubjectName = item['subjectName'] ?? '';
+    selectedTeacherId = item['teacherId'] ?? '';
+    selectedTeacherName = item['teacherName'] ?? '';
+    selectedStartTime = timeFromString(
+      item['startTime'] ?? '',
+      const TimeOfDay(hour: 8, minute: 0),
+    );
+    selectedEndTime = timeFromString(
+      item['endTime'] ?? '',
+      const TimeOfDay(hour: 10, minute: 0),
+    );
+    roomController.text = item['room'] ?? '';
+    noteController.text = item['note'] ?? '';
   }
 
   Widget sheetHandle() {
@@ -585,6 +722,32 @@ class _TimetableScreenState extends State<TimetableScreen> {
   void showAddTimetableSheet() {
     resetForm();
 
+    showTimetableFormSheet(
+      title: 'Create Timetable',
+      buttonText: 'Save Timetable',
+      editingId: null,
+    );
+  }
+
+  void showEditTimetableSheet(Map<String, dynamic> item) {
+    prepareEditForm(item);
+
+    showTimetableFormSheet(
+      title: 'Edit Timetable',
+      buttonText: 'Update Timetable',
+      editingId: item['id'] ?? '',
+    );
+  }
+
+  void showTimetableFormSheet({
+    required String title,
+    required String buttonText,
+    required String? editingId,
+  }) {
+    List<Map<String, dynamic>> modalSubjects = [];
+    bool isLoadingSubjects = false;
+    bool didLoadInitialSubjects = false;
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -597,6 +760,36 @@ class _TimetableScreenState extends State<TimetableScreen> {
       builder: (sheetContext) {
         return StatefulBuilder(
           builder: (sheetContext, setModalState) {
+            Future<void> loadModalSubjects(String classId) async {
+              setModalState(() {
+                isLoadingSubjects = true;
+              });
+
+              final loadedSubjects = await getSubjectsByClass(classId);
+
+              setModalState(() {
+                modalSubjects = loadedSubjects;
+                isLoadingSubjects = false;
+
+                if (selectedSubjectId.isNotEmpty &&
+                    !modalSubjects.any((subject) {
+                      return subject['id'] == selectedSubjectId;
+                    })) {
+                  selectedSubjectId = '';
+                  selectedSubjectName = '';
+                  selectedTeacherId = '';
+                  selectedTeacherName = '';
+                }
+              });
+            }
+
+            if (!didLoadInitialSubjects && selectedClassId.isNotEmpty) {
+              didLoadInitialSubjects = true;
+              Future.microtask(() {
+                loadModalSubjects(selectedClassId);
+              });
+            }
+
             return Padding(
               padding: EdgeInsets.only(
                 left: 24,
@@ -620,10 +813,10 @@ class _TimetableScreenState extends State<TimetableScreen> {
                           padding: 10,
                         ),
                         const SizedBox(width: 12),
-                        const Expanded(
+                        Expanded(
                           child: Text(
-                            'Create Timetable',
-                            style: TextStyle(
+                            title,
+                            style: const TextStyle(
                               fontSize: 22,
                               fontWeight: FontWeight.w900,
                               color: AppColors.textDark,
@@ -710,22 +903,22 @@ class _TimetableScreenState extends State<TimetableScreen> {
                       onChanged: (value) async {
                         if (value == null) return;
 
-                        final selectedClass = classes.firstWhere(
+                        final chosenClass = classes.firstWhere(
                           (schoolClass) => schoolClass['id'] == value,
                           orElse: () => {},
                         );
 
                         setModalState(() {
                           selectedClassId = value;
-                          selectedClassName = selectedClass['className'] ?? '';
+                          selectedClassName = chosenClass['className'] ?? '';
                           selectedSubjectId = '';
                           selectedSubjectName = '';
-                          subjects = [];
+                          selectedTeacherId = '';
+                          selectedTeacherName = '';
+                          modalSubjects = [];
                         });
 
-                        await loadSubjectsByClass(value);
-
-                        setModalState(() {});
+                        await loadModalSubjects(value);
                       },
                     ),
                     if (classes.isEmpty) ...[
@@ -739,44 +932,53 @@ class _TimetableScreenState extends State<TimetableScreen> {
                       ),
                     ],
                     const SizedBox(height: 14),
-                    DropdownButtonFormField<String>(
-                      initialValue:
-                          selectedSubjectId.isEmpty ? null : selectedSubjectId,
-                      decoration: const InputDecoration(
-                        labelText: 'Subject',
-                        prefixIcon: Icon(Icons.menu_book_outlined),
+                    if (isLoadingSubjects)
+                      const Center(
+                        child: Padding(
+                          padding: EdgeInsets.all(12),
+                          child: CircularProgressIndicator(),
+                        ),
+                      )
+                    else
+                      DropdownButtonFormField<String>(
+                        initialValue:
+                            selectedSubjectId.isEmpty ? null : selectedSubjectId,
+                        decoration: const InputDecoration(
+                          labelText: 'Subject',
+                          prefixIcon: Icon(Icons.menu_book_outlined),
+                        ),
+                        items: modalSubjects.map((subject) {
+                          return DropdownMenuItem<String>(
+                            value: subject['id'],
+                            child: Text(
+                              subject['subjectName'] ?? 'Unnamed Subject',
+                            ),
+                          );
+                        }).toList(),
+                        onChanged: modalSubjects.isEmpty
+                            ? null
+                            : (value) {
+                                if (value == null) return;
+
+                                final chosenSubject = modalSubjects.firstWhere(
+                                  (subject) => subject['id'] == value,
+                                  orElse: () => {},
+                                );
+
+                                setModalState(() {
+                                  selectedSubjectId = value;
+                                  selectedSubjectName =
+                                      chosenSubject['subjectName'] ?? '';
+                                  selectedTeacherId =
+                                      chosenSubject['teacherId'] ?? '';
+                                  selectedTeacherName =
+                                      chosenSubject['teacherName'] ?? '';
+                                });
+                              },
                       ),
-                      items: subjects.map((subject) {
-                        return DropdownMenuItem<String>(
-                          value: subject['id'],
-                          child: Text(
-                            subject['subjectName'] ?? 'Unnamed Subject',
-                          ),
-                        );
-                      }).toList(),
-                      onChanged: subjects.isEmpty
-                          ? null
-                          : (value) {
-                              if (value == null) return;
-
-                              final selectedSubject = subjects.firstWhere(
-                                (subject) => subject['id'] == value,
-                                orElse: () => {},
-                              );
-
-                              setModalState(() {
-                                selectedSubjectId = value;
-                                selectedSubjectName =
-                                    selectedSubject['subjectName'] ?? '';
-
-                                selectedTeacherId =
-                                    selectedSubject['teacherId'] ?? '';
-                                selectedTeacherName =
-                                    selectedSubject['teacherName'] ?? '';
-                              });
-                            },
-                    ),
-                    if (selectedClassId.isNotEmpty && subjects.isEmpty) ...[
+                    if (selectedClassId.isNotEmpty &&
+                        modalSubjects.isEmpty &&
+                        !isLoadingSubjects) ...[
                       const SizedBox(height: 10),
                       const Text(
                         'No subject found for this class. Create a subject first.',
@@ -805,7 +1007,7 @@ class _TimetableScreenState extends State<TimetableScreen> {
                       onChanged: (value) {
                         if (value == null) return;
 
-                        final selectedTeacher = teachers.firstWhere(
+                        final chosenTeacher = teachers.firstWhere(
                           (teacher) => teacher['id'] == value,
                           orElse: () => {},
                         );
@@ -813,7 +1015,7 @@ class _TimetableScreenState extends State<TimetableScreen> {
                         setModalState(() {
                           selectedTeacherId = value;
                           selectedTeacherName =
-                              selectedTeacher['fullName'] ?? '';
+                              chosenTeacher['fullName'] ?? '';
                         });
                       },
                     ),
@@ -852,7 +1054,13 @@ class _TimetableScreenState extends State<TimetableScreen> {
                       width: double.infinity,
                       height: 52,
                       child: ElevatedButton.icon(
-                        onPressed: isSaving ? null : saveTimetable,
+                        onPressed: isSaving
+                            ? null
+                            : () {
+                                saveTimetable(
+                                  editingId: editingId,
+                                );
+                              },
                         icon: isSaving
                             ? const SizedBox(
                                 height: 20,
@@ -864,7 +1072,7 @@ class _TimetableScreenState extends State<TimetableScreen> {
                               )
                             : const Icon(Icons.save_outlined),
                         label: Text(
-                          isSaving ? 'Saving...' : 'Save Timetable',
+                          isSaving ? 'Saving...' : buttonText,
                         ),
                       ),
                     ),
@@ -1125,22 +1333,41 @@ class _TimetableScreenState extends State<TimetableScreen> {
                           ),
                         ),
                       ],
+                      if (canCreateTimetable) ...[
+                        const SizedBox(height: 12),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: [
+                            OutlinedButton.icon(
+                              onPressed: () {
+                                showEditTimetableSheet(item);
+                              },
+                              icon: const Icon(Icons.edit_outlined),
+                              label: const Text('Edit'),
+                            ),
+                            OutlinedButton.icon(
+                              onPressed: () {
+                                confirmDelete(
+                                  timetableId: timetableId,
+                                  subjectName: subjectName,
+                                );
+                              },
+                              icon: const Icon(
+                                Icons.delete_outline,
+                                color: AppColors.danger,
+                              ),
+                              label: const Text(
+                                'Delete',
+                                style: TextStyle(color: AppColors.danger),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
                     ],
                   ),
                 ),
-                if (canCreateTimetable)
-                  IconButton(
-                    onPressed: () {
-                      confirmDelete(
-                        timetableId: timetableId,
-                        subjectName: subjectName,
-                      );
-                    },
-                    icon: const Icon(
-                      Icons.delete_outline,
-                      color: AppColors.danger,
-                    ),
-                  ),
               ],
             ),
           ],

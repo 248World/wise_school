@@ -107,7 +107,7 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
   Future<void> loadAdminTeacherAssignments() async {
     final classesSnapshot = await firestore.collection('classes').get();
 
-    classes = classesSnapshot.docs.map((doc) {
+    final loadedClasses = classesSnapshot.docs.map((doc) {
       final data = doc.data();
 
       return {
@@ -119,7 +119,33 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
       };
     }).toList();
 
-    final assignmentsSnapshot = await firestore.collection('assignments').get();
+    loadedClasses.sort((a, b) {
+      return (a['className'] ?? '').toString().compareTo(
+            (b['className'] ?? '').toString(),
+          );
+    });
+
+    if (currentRole == 'Teacher') {
+      classes = loadedClasses.where((schoolClass) {
+        final teacherId = schoolClass['teacherId'] ?? '';
+        final teacherName = schoolClass['teacherName'] ?? '';
+
+        return teacherId == currentUserId || teacherName == currentUserName;
+      }).toList();
+    } else {
+      classes = loadedClasses;
+    }
+
+    QuerySnapshot<Map<String, dynamic>> assignmentsSnapshot;
+
+    if (currentRole == 'Teacher') {
+      assignmentsSnapshot = await firestore
+          .collection('assignments')
+          .where('teacherId', isEqualTo: currentUserId)
+          .get();
+    } else {
+      assignmentsSnapshot = await firestore.collection('assignments').get();
+    }
 
     assignments = assignmentsSnapshot.docs.map((doc) {
       final data = doc.data();
@@ -136,6 +162,7 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
         'teacherName': data['teacherName'] ?? '',
         'dueDate': data['dueDate'],
         'createdAt': data['createdAt'],
+        'updatedAt': data['updatedAt'],
       };
     }).toList();
 
@@ -178,6 +205,7 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
         'teacherName': data['teacherName'] ?? '',
         'dueDate': data['dueDate'],
         'createdAt': data['createdAt'],
+        'updatedAt': data['updatedAt'],
       };
     }).toList();
 
@@ -237,6 +265,7 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
           'teacherName': data['teacherName'] ?? '',
           'dueDate': data['dueDate'],
           'createdAt': data['createdAt'],
+          'updatedAt': data['updatedAt'],
         });
       }
     }
@@ -312,6 +341,17 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
     });
   }
 
+  bool canModifyAssignment(Map<String, dynamic> assignment) {
+    if (currentRole == 'Admin') return true;
+
+    if (currentRole == 'Teacher') {
+      return assignment['teacherId'] == currentUserId ||
+          assignment['teacherName'] == currentUserName;
+    }
+
+    return false;
+  }
+
   Map<String, dynamic>? getStudentSubmission(String assignmentId) {
     try {
       return submissions.firstWhere(
@@ -373,12 +413,22 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
   }
 
   Future<List<Map<String, dynamic>>> loadSubjectsByClass(String classId) async {
-    final subjectsSnapshot = await firestore
-        .collection('subjects')
-        .where('classId', isEqualTo: classId)
-        .get();
+    QuerySnapshot<Map<String, dynamic>> subjectsSnapshot;
 
-    return subjectsSnapshot.docs.map((doc) {
+    if (currentRole == 'Teacher') {
+      subjectsSnapshot = await firestore
+          .collection('subjects')
+          .where('classId', isEqualTo: classId)
+          .where('teacherId', isEqualTo: currentUserId)
+          .get();
+    } else {
+      subjectsSnapshot = await firestore
+          .collection('subjects')
+          .where('classId', isEqualTo: classId)
+          .get();
+    }
+
+    final subjects = subjectsSnapshot.docs.map((doc) {
       final data = doc.data();
 
       return {
@@ -390,6 +440,14 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
         'teacherName': data['teacherName'] ?? '',
       };
     }).toList();
+
+    subjects.sort((a, b) {
+      return (a['subjectName'] ?? '').toString().compareTo(
+            (b['subjectName'] ?? '').toString(),
+          );
+    });
+
+    return subjects;
   }
 
   Future<void> pickDueDate({
@@ -400,7 +458,7 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
     final pickedDate = await showDatePicker(
       context: modalContext,
       initialDate: currentDate,
-      firstDate: DateTime.now(),
+      firstDate: DateTime.now().subtract(const Duration(days: 1)),
       lastDate: DateTime.now().add(const Duration(days: 365)),
     );
 
@@ -416,6 +474,8 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
     required String className,
     required String subjectId,
     required String subjectName,
+    required String teacherId,
+    required String teacherName,
     required DateTime dueDate,
   }) async {
     final cleanTitle = title.trim();
@@ -446,6 +506,10 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
         isSaving = true;
       });
 
+      final finalTeacherId = teacherId.isEmpty ? currentUserId : teacherId;
+      final finalTeacherName =
+          teacherName.isEmpty ? currentUserName : teacherName;
+
       final assignmentRef = await firestore.collection('assignments').add({
         'title': cleanTitle,
         'description': cleanDescription,
@@ -453,8 +517,11 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
         'className': className,
         'subjectId': subjectId,
         'subjectName': subjectName,
-        'teacherId': currentUserId,
-        'teacherName': currentUserName,
+        'teacherId': finalTeacherId,
+        'teacherName': finalTeacherName,
+        'createdById': currentUserId,
+        'createdByName': currentUserName,
+        'createdByRole': currentRole,
         'dueDate': Timestamp.fromDate(dueDate),
         'createdAt': FieldValue.serverTimestamp(),
         'updatedAt': FieldValue.serverTimestamp(),
@@ -493,16 +560,93 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
     }
   }
 
+  Future<void> updateAssignment({
+    required String assignmentId,
+    required String title,
+    required String description,
+    required String classId,
+    required String className,
+    required String subjectId,
+    required String subjectName,
+    required String teacherId,
+    required String teacherName,
+    required DateTime dueDate,
+  }) async {
+    final cleanTitle = title.trim();
+    final cleanDescription = description.trim();
+
+    if (cleanTitle.isEmpty) {
+      showSnackBar('Please enter assignment title');
+      return;
+    }
+
+    if (cleanDescription.isEmpty) {
+      showSnackBar('Please enter assignment description');
+      return;
+    }
+
+    if (classId.trim().isEmpty) {
+      showSnackBar('Please select a class');
+      return;
+    }
+
+    if (subjectId.trim().isEmpty) {
+      showSnackBar('Please select a subject');
+      return;
+    }
+
+    try {
+      setState(() {
+        isSaving = true;
+      });
+
+      await firestore.collection('assignments').doc(assignmentId).update({
+        'title': cleanTitle,
+        'description': cleanDescription,
+        'classId': classId,
+        'className': className,
+        'subjectId': subjectId,
+        'subjectName': subjectName,
+        'teacherId': teacherId.isEmpty ? currentUserId : teacherId,
+        'teacherName': teacherName.isEmpty ? currentUserName : teacherName,
+        'dueDate': Timestamp.fromDate(dueDate),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+
+      if (!mounted) return;
+
+      Navigator.pop(context);
+
+      await loadInitialData();
+
+      if (!mounted) return;
+
+      setState(() {
+        isSaving = false;
+      });
+
+      showSnackBar('Assignment updated successfully');
+    } catch (error) {
+      if (!mounted) return;
+
+      setState(() {
+        isSaving = false;
+      });
+
+      showSnackBar(error.toString().replaceAll('Exception: ', ''));
+    }
+  }
+
   Future<void> deleteAssignment(String assignmentId) async {
     try {
-      await firestore.collection('assignments').doc(assignmentId).delete();
+      final batch = firestore.batch();
+
+      batch.delete(firestore.collection('assignments').doc(assignmentId));
 
       final submissionSnapshot = await firestore
           .collection('assignment_submissions')
           .where('assignmentId', isEqualTo: assignmentId)
           .get();
-
-      final batch = firestore.batch();
 
       for (final doc in submissionSnapshot.docs) {
         batch.delete(doc.reference);
@@ -528,7 +672,9 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
       builder: (_) {
         return AlertDialog(
           title: const Text('Delete Assignment'),
-          content: Text('Are you sure you want to delete "$title"?'),
+          content: Text(
+            'Are you sure you want to delete "$title"? Related submissions will also be deleted.',
+          ),
           actions: [
             TextButton(
               onPressed: () {
@@ -761,6 +907,8 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
       ),
       child: Text(
         text,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
         style: TextStyle(
           color: color,
           fontWeight: FontWeight.w800,
@@ -770,17 +918,77 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
     );
   }
 
+  DateTime dateFromTimestamp(dynamic value) {
+    if (value is Timestamp) {
+      return value.toDate();
+    }
+
+    return DateTime.now().add(const Duration(days: 7));
+  }
+
   void showAddAssignmentSheet() {
     titleController.clear();
     descriptionController.clear();
 
-    String modalClassId = '';
-    String modalClassName = '';
-    String modalSubjectId = '';
-    String modalSubjectName = '';
+    showAssignmentFormSheet(
+      title: 'Create Assignment',
+      buttonText: 'Save Assignment',
+      initialAssignment: null,
+    );
+  }
+
+  void showEditAssignmentSheet(Map<String, dynamic> assignment) {
+    titleController.text = assignment['title'] ?? '';
+    descriptionController.text = assignment['description'] ?? '';
+
+    showAssignmentFormSheet(
+      title: 'Edit Assignment',
+      buttonText: 'Update Assignment',
+      initialAssignment: assignment,
+    );
+  }
+
+  void showAssignmentFormSheet({
+    required String title,
+    required String buttonText,
+    required Map<String, dynamic>? initialAssignment,
+  }) {
+    String modalClassId = initialAssignment?['classId'] ?? '';
+    String modalClassName = initialAssignment?['className'] ?? '';
+    String modalSubjectId = initialAssignment?['subjectId'] ?? '';
+    String modalSubjectName = initialAssignment?['subjectName'] ?? '';
+    String modalTeacherId = initialAssignment?['teacherId'] ?? currentUserId;
+    String modalTeacherName =
+        initialAssignment?['teacherName'] ?? currentUserName;
+
     List<Map<String, dynamic>> modalSubjects = [];
-    DateTime modalDueDate = DateTime.now().add(const Duration(days: 7));
+    DateTime modalDueDate = initialAssignment == null
+        ? DateTime.now().add(const Duration(days: 7))
+        : dateFromTimestamp(initialAssignment['dueDate']);
     bool isLoadingSubjects = false;
+
+    Future<void> loadInitialSubjects(
+      void Function(void Function()) setModalState,
+    ) async {
+      if (modalClassId.isEmpty) return;
+
+      setModalState(() {
+        isLoadingSubjects = true;
+      });
+
+      final loadedSubjects = await loadSubjectsByClass(modalClassId);
+
+      setModalState(() {
+        modalSubjects = loadedSubjects;
+        isLoadingSubjects = false;
+
+        if (modalSubjectId.isNotEmpty &&
+            !modalSubjects.any((subject) => subject['id'] == modalSubjectId)) {
+          modalSubjectId = '';
+          modalSubjectName = '';
+        }
+      });
+    }
 
     showModalBottomSheet(
       context: context,
@@ -792,8 +1000,17 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
         ),
       ),
       builder: (sheetContext) {
+        bool didLoadInitialSubjects = false;
+
         return StatefulBuilder(
           builder: (sheetContext, setModalState) {
+            if (!didLoadInitialSubjects && modalClassId.isNotEmpty) {
+              didLoadInitialSubjects = true;
+              Future.microtask(() {
+                loadInitialSubjects(setModalState);
+              });
+            }
+
             return Padding(
               padding: EdgeInsets.only(
                 left: 24,
@@ -817,10 +1034,10 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
                           padding: 10,
                         ),
                         const SizedBox(width: 12),
-                        const Expanded(
+                        Expanded(
                           child: Text(
-                            'Create Assignment',
-                            style: TextStyle(
+                            title,
+                            style: const TextStyle(
                               fontSize: 22,
                               fontWeight: FontWeight.w900,
                               color: AppColors.textDark,
@@ -936,6 +1153,12 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
                                   modalSubjectId = value;
                                   modalSubjectName =
                                       selectedSubject['subjectName'] ?? '';
+                                  modalTeacherId =
+                                      selectedSubject['teacherId'] ??
+                                          currentUserId;
+                                  modalTeacherName =
+                                      selectedSubject['teacherName'] ??
+                                          currentUserName;
                                 });
                               },
                       ),
@@ -1000,15 +1223,33 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
                         onPressed: isSaving
                             ? null
                             : () {
-                                saveAssignment(
-                                  title: titleController.text,
-                                  description: descriptionController.text,
-                                  classId: modalClassId,
-                                  className: modalClassName,
-                                  subjectId: modalSubjectId,
-                                  subjectName: modalSubjectName,
-                                  dueDate: modalDueDate,
-                                );
+                                if (initialAssignment == null) {
+                                  saveAssignment(
+                                    title: titleController.text,
+                                    description: descriptionController.text,
+                                    classId: modalClassId,
+                                    className: modalClassName,
+                                    subjectId: modalSubjectId,
+                                    subjectName: modalSubjectName,
+                                    teacherId: modalTeacherId,
+                                    teacherName: modalTeacherName,
+                                    dueDate: modalDueDate,
+                                  );
+                                } else {
+                                  updateAssignment(
+                                    assignmentId:
+                                        initialAssignment['id'] ?? '',
+                                    title: titleController.text,
+                                    description: descriptionController.text,
+                                    classId: modalClassId,
+                                    className: modalClassName,
+                                    subjectId: modalSubjectId,
+                                    subjectName: modalSubjectName,
+                                    teacherId: modalTeacherId,
+                                    teacherName: modalTeacherName,
+                                    dueDate: modalDueDate,
+                                  );
+                                }
                               },
                         icon: isSaving
                             ? const SizedBox(
@@ -1021,7 +1262,7 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
                               )
                             : const Icon(Icons.save_outlined),
                         label: Text(
-                          isSaving ? 'Saving...' : 'Save Assignment',
+                          isSaving ? 'Saving...' : buttonText,
                         ),
                       ),
                     ),
@@ -1258,6 +1499,7 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
     final subjectName = assignment['subjectName'] ?? '';
     final teacherName = assignment['teacherName'] ?? '';
     final dueDate = assignment['dueDate'];
+    final canModify = canModifyAssignment(assignment);
 
     return Material(
       color: Colors.transparent,
@@ -1319,7 +1561,8 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
                         runSpacing: 8,
                         children: [
                           smallStatusChip(
-                            text: subjectName.isEmpty ? 'No subject' : subjectName,
+                            text:
+                                subjectName.isEmpty ? 'No subject' : subjectName,
                             color: AppColors.primaryBlue,
                           ),
                           smallStatusChip(
@@ -1378,7 +1621,9 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
 
                                 if (!mounted) return;
 
-                                showSnackBar('Assignment submitted successfully');
+                                showSnackBar(
+                                  'Assignment submitted successfully',
+                                );
                               }
                             },
                             icon: const Icon(Icons.comment_outlined),
@@ -1391,33 +1636,49 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
                         ),
                       ],
                       if (isParent) parentProgressWidget(assignment),
-                      if (canCreateAssignment) adminTeacherProgressWidget(assignment),
+                      if (canCreateAssignment)
+                        adminTeacherProgressWidget(assignment),
                       if (canCreateAssignment) ...[
                         const SizedBox(height: 10),
-                        SizedBox(
-                          height: 44,
-                          child: OutlinedButton.icon(
-                            onPressed: () {
-                              showAssignmentRecords(assignment);
-                            },
-                            icon: const Icon(Icons.list_alt_outlined),
-                            label: const Text('View Records'),
-                          ),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: [
+                            OutlinedButton.icon(
+                              onPressed: () {
+                                showAssignmentRecords(assignment);
+                              },
+                              icon: const Icon(Icons.list_alt_outlined),
+                              label: const Text('Records'),
+                            ),
+                            if (canModify)
+                              OutlinedButton.icon(
+                                onPressed: () {
+                                  showEditAssignmentSheet(assignment);
+                                },
+                                icon: const Icon(Icons.edit_outlined),
+                                label: const Text('Edit'),
+                              ),
+                            if (canModify)
+                              OutlinedButton.icon(
+                                onPressed: () {
+                                  confirmDelete(assignmentId, title);
+                                },
+                                icon: const Icon(
+                                  Icons.delete_outline,
+                                  color: AppColors.danger,
+                                ),
+                                label: const Text(
+                                  'Delete',
+                                  style: TextStyle(color: AppColors.danger),
+                                ),
+                              ),
+                          ],
                         ),
                       ],
                     ],
                   ),
                 ),
-                if (canCreateAssignment)
-                  IconButton(
-                    onPressed: () {
-                      confirmDelete(assignmentId, title);
-                    },
-                    icon: const Icon(
-                      Icons.delete_outline,
-                      color: AppColors.danger,
-                    ),
-                  ),
               ],
             ),
           ],

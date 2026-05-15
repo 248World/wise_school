@@ -28,6 +28,7 @@ class _ResultsScreenState extends State<ResultsScreen> {
   String selectedClassId = '';
   String selectedStudentId = '';
   String selectedStudentName = '';
+  String selectedClassName = '';
 
   String currentRole = 'Student';
   String currentUserId = '';
@@ -35,6 +36,8 @@ class _ResultsScreenState extends State<ResultsScreen> {
 
   bool get isStudent => currentRole == 'Student';
   bool get isParent => currentRole == 'Parent';
+  bool get isTeacher => currentRole == 'Teacher';
+  bool get isAdmin => currentRole == 'Admin';
 
   @override
   void initState() {
@@ -60,6 +63,7 @@ class _ResultsScreenState extends State<ResultsScreen> {
         students = [];
         classes = [];
         selectedClassId = '';
+        selectedClassName = '';
         selectedStudentId = '';
         selectedStudentName = '';
       });
@@ -94,6 +98,8 @@ class _ResultsScreenState extends State<ResultsScreen> {
         if (students.length == 1) {
           selectedStudentId = students.first['id'] ?? '';
           selectedStudentName = students.first['fullName'] ?? '';
+          selectedClassId = students.first['classId'] ?? '';
+          selectedClassName = students.first['className'] ?? '';
 
           final loadedMarks = await databaseService.getMarksByStudent(
             studentId: selectedStudentId,
@@ -110,6 +116,21 @@ class _ResultsScreenState extends State<ResultsScreen> {
         }
 
         setState(() {
+          isLoading = false;
+        });
+
+        return;
+      }
+
+      if (currentRole == 'Teacher') {
+        final teacherClasses = await databaseService.getClassesByTeacher(
+          teacherName: currentUserName,
+        );
+
+        if (!mounted) return;
+
+        setState(() {
+          classes = teacherClasses;
           isLoading = false;
         });
 
@@ -194,8 +215,14 @@ class _ResultsScreenState extends State<ResultsScreen> {
   void selectClass(String? value) {
     if (value == null) return;
 
+    final selectedClass = classes.firstWhere(
+      (schoolClass) => schoolClass['id'] == value,
+      orElse: () => {},
+    );
+
     setState(() {
       selectedClassId = value;
+      selectedClassName = selectedClass['className'] ?? '';
     });
 
     loadStudentsByClass(value);
@@ -212,6 +239,8 @@ class _ResultsScreenState extends State<ResultsScreen> {
     setState(() {
       selectedStudentId = value;
       selectedStudentName = selectedStudent['fullName'] ?? '';
+      selectedClassId = selectedStudent['classId'] ?? selectedClassId;
+      selectedClassName = selectedStudent['className'] ?? selectedClassName;
     });
 
     loadMarksByStudent(value);
@@ -242,6 +271,18 @@ class _ResultsScreenState extends State<ResultsScreen> {
     if (coefficientTotal == 0) return 0;
 
     return weightedTotal / coefficientTotal;
+  }
+
+  int passedSubjects() {
+    return marks.where((mark) {
+      return parseNumber(mark['mark']) >= 10;
+    }).length;
+  }
+
+  int weakSubjects() {
+    return marks.where((mark) {
+      return parseNumber(mark['mark']) < 10;
+    }).length;
   }
 
   String progressStatus(double average) {
@@ -306,7 +347,7 @@ class _ResultsScreenState extends State<ResultsScreen> {
 
     if (currentRole == 'Teacher') {
       title = 'Student Results';
-      subtitle = 'Select a class and student to review marks.';
+      subtitle = 'Review results for your assigned classes.';
     }
 
     if (currentRole == 'Parent') {
@@ -480,41 +521,16 @@ class _ResultsScreenState extends State<ResultsScreen> {
 
     if (isParent) {
       if (students.isEmpty) {
-        return Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: AppColors.white,
-            borderRadius: BorderRadius.circular(22),
-            border: Border.all(color: AppColors.border),
-          ),
-          child: const Text(
-            'No child is assigned to this parent account yet. Ask Admin to assign a student to this parent.',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              color: AppColors.textGrey,
-              height: 1.5,
-            ),
-          ),
+        return noticeBox(
+          text:
+              'No child is assigned to this parent account yet. Ask Admin to assign a student to this parent.',
         );
       }
 
       if (students.length == 1) {
-        return Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: AppColors.white,
-            borderRadius: BorderRadius.circular(22),
-            border: Border.all(color: AppColors.border),
-          ),
-          child: Text(
-            'Child: $selectedStudentName',
-            style: const TextStyle(
-              color: AppColors.textDark,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
+        return noticeBox(
+          text: 'Child: $selectedStudentName',
+          icon: Icons.child_care_outlined,
         );
       }
 
@@ -536,22 +552,28 @@ class _ResultsScreenState extends State<ResultsScreen> {
 
     return Column(
       children: [
-        DropdownButtonFormField<String>(
-          initialValue: selectedClassId.isEmpty ? null : selectedClassId,
-          decoration: const InputDecoration(
-            labelText: 'Select Class',
-            prefixIcon: Icon(Icons.class_outlined),
+        if (isTeacher && classes.isEmpty)
+          noticeBox(
+            text:
+                'No class is assigned to your teacher account yet. Ask Admin to assign you to a class.',
+          )
+        else
+          DropdownButtonFormField<String>(
+            initialValue: selectedClassId.isEmpty ? null : selectedClassId,
+            decoration: const InputDecoration(
+              labelText: 'Select Class',
+              prefixIcon: Icon(Icons.class_outlined),
+            ),
+            items: classes.map((schoolClass) {
+              return DropdownMenuItem<String>(
+                value: schoolClass['id'],
+                child: Text(
+                  schoolClass['className'] ?? 'Unnamed Class',
+                ),
+              );
+            }).toList(),
+            onChanged: classes.isEmpty ? null : selectClass,
           ),
-          items: classes.map((schoolClass) {
-            return DropdownMenuItem<String>(
-              value: schoolClass['id'],
-              child: Text(
-                schoolClass['className'] ?? 'Unnamed Class',
-              ),
-            );
-          }).toList(),
-          onChanged: selectClass,
-        ),
         const SizedBox(height: 14),
         DropdownButtonFormField<String>(
           initialValue: selectedStudentId.isEmpty ? null : selectedStudentId,
@@ -581,6 +603,39 @@ class _ResultsScreenState extends State<ResultsScreen> {
             ),
           ),
       ],
+    );
+  }
+
+  Widget noticeBox({
+    required String text,
+    IconData icon = Icons.info_outline,
+  }) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            icon,
+            color: AppColors.primaryBlue,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              text,
+              style: const TextStyle(
+                color: AppColors.textGrey,
+                height: 1.5,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -636,6 +691,16 @@ class _ResultsScreenState extends State<ResultsScreen> {
                     height: 1.35,
                   ),
                 ),
+                if (selectedClassName.isNotEmpty) ...[
+                  const SizedBox(height: 6),
+                  Text(
+                    'Class: $selectedClassName',
+                    style: const TextStyle(
+                      color: AppColors.textGrey,
+                      height: 1.35,
+                    ),
+                  ),
+                ],
                 if (marks.isNotEmpty) ...[
                   const SizedBox(height: 7),
                   Wrap(
@@ -645,6 +710,16 @@ class _ResultsScreenState extends State<ResultsScreen> {
                       smallStatusChip(
                         text: 'Subjects: ${marks.length}',
                         color: AppColors.primaryBlue,
+                      ),
+                      smallStatusChip(
+                        text: 'Passed: ${passedSubjects()}',
+                        color: AppColors.softGreen,
+                      ),
+                      smallStatusChip(
+                        text: 'Weak: ${weakSubjects()}',
+                        color: weakSubjects() == 0
+                            ? AppColors.softGreen
+                            : AppColors.danger,
                       ),
                       smallStatusChip(
                         text: status,
@@ -766,6 +841,12 @@ class _ResultsScreenState extends State<ResultsScreen> {
   }
 
   Widget emptyMarksState() {
+    String message = 'Marks, teacher comments, and progress will appear here.';
+
+    if (!isStudent && selectedStudentId.isEmpty) {
+      message = 'Select a student to view results.';
+    }
+
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(28),
@@ -789,10 +870,10 @@ class _ResultsScreenState extends State<ResultsScreen> {
               ),
             ),
             const SizedBox(height: 8),
-            const Text(
-              'Marks, teacher comments, and progress will appear here.',
+            Text(
+              message,
               textAlign: TextAlign.center,
-              style: TextStyle(
+              style: const TextStyle(
                 color: AppColors.textGrey,
                 height: 1.5,
               ),
