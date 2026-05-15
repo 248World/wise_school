@@ -1,7 +1,7 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
 import '../../core/constants/app_colors.dart';
-import '../../services/database_service.dart';
 
 class SubjectManagementScreen extends StatefulWidget {
   const SubjectManagementScreen({super.key});
@@ -12,9 +12,10 @@ class SubjectManagementScreen extends StatefulWidget {
 }
 
 class _SubjectManagementScreenState extends State<SubjectManagementScreen> {
-  final DatabaseService databaseService = DatabaseService();
+  final FirebaseFirestore firestore = FirebaseFirestore.instance;
 
   bool isLoading = true;
+  bool isSaving = false;
   String? errorMessage;
 
   List<Map<String, dynamic>> subjects = [];
@@ -49,13 +50,71 @@ class _SubjectManagementScreenState extends State<SubjectManagementScreen> {
         errorMessage = null;
       });
 
-      final loadedSubjects = await databaseService.getSubjects();
-      final loadedClasses = await databaseService.getClasses();
-      final loadedUsers = await databaseService.getUsers();
+      final subjectsSnapshot = await firestore.collection('subjects').get();
+      final classesSnapshot = await firestore.collection('classes').get();
+      final usersSnapshot = await firestore.collection('users').get();
 
-      final loadedTeachers = loadedUsers.where((user) {
+      final loadedSubjects = subjectsSnapshot.docs.map((doc) {
+        final data = doc.data();
+
+        return {
+          'id': doc.id,
+          'subjectName': data['subjectName'] ?? '',
+          'classId': data['classId'] ?? '',
+          'className': data['className'] ?? '',
+          'teacherId': data['teacherId'] ?? '',
+          'teacherName': data['teacherName'] ?? '',
+          'coefficient': data['coefficient'] ?? 1,
+          'createdAt': data['createdAt'],
+          'updatedAt': data['updatedAt'],
+        };
+      }).toList();
+
+      loadedSubjects.sort((a, b) {
+        return (a['subjectName'] ?? '').toString().compareTo(
+              (b['subjectName'] ?? '').toString(),
+            );
+      });
+
+      final loadedClasses = classesSnapshot.docs.map((doc) {
+        final data = doc.data();
+
+        return {
+          'id': doc.id,
+          'className': data['className'] ?? '',
+          'level': data['level'] ?? '',
+          'teacherId': data['teacherId'] ?? '',
+          'teacherName': data['teacherName'] ?? '',
+          'studentCount': data['studentCount'] ?? 0,
+        };
+      }).toList();
+
+      loadedClasses.sort((a, b) {
+        return (a['className'] ?? '').toString().compareTo(
+              (b['className'] ?? '').toString(),
+            );
+      });
+
+      final loadedTeachers = usersSnapshot.docs.map((doc) {
+        final data = doc.data();
+
+        return {
+          'id': doc.id,
+          'fullName': data['fullName'] ?? '',
+          'email': data['email'] ?? '',
+          'phone': data['phone'] ?? '',
+          'role': data['role'] ?? '',
+          'isActive': data['isActive'] ?? true,
+        };
+      }).where((user) {
         return user['role'] == 'Teacher' && user['isActive'] == true;
       }).toList();
+
+      loadedTeachers.sort((a, b) {
+        return (a['fullName'] ?? '').toString().compareTo(
+              (b['fullName'] ?? '').toString(),
+            );
+      });
 
       if (!mounted) return;
 
@@ -75,10 +134,19 @@ class _SubjectManagementScreenState extends State<SubjectManagementScreen> {
     }
   }
 
+  int parseCoefficient(String value) {
+    final coefficient = int.tryParse(value.trim()) ?? 1;
+
+    if (coefficient <= 0) {
+      return 1;
+    }
+
+    return coefficient;
+  }
+
   Future<void> addSubject() async {
     final subjectName = subjectNameController.text.trim();
-    final coefficientText = coefficientController.text.trim();
-    final coefficient = int.tryParse(coefficientText) ?? 1;
+    final coefficient = parseCoefficient(coefficientController.text);
 
     if (subjectName.isEmpty) {
       showSnackBar('Please enter subject name');
@@ -96,48 +164,207 @@ class _SubjectManagementScreenState extends State<SubjectManagementScreen> {
     }
 
     try {
-      await databaseService.addSubject(
-        subjectName: subjectName,
-        classId: selectedClassId,
-        className: selectedClassName,
-        teacherId: selectedTeacherId,
-        teacherName: selectedTeacherName,
-        coefficient: coefficient,
-      );
+      setState(() {
+        isSaving = true;
+      });
 
-      if (!mounted) return;
-
-      Navigator.pop(context);
+      await firestore.collection('subjects').add({
+        'subjectName': subjectName,
+        'classId': selectedClassId,
+        'className': selectedClassName,
+        'teacherId': selectedTeacherId,
+        'teacherName': selectedTeacherName,
+        'coefficient': coefficient,
+        'createdAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
 
       subjectNameController.clear();
       coefficientController.text = '1';
-
       selectedClassId = '';
       selectedClassName = '';
       selectedTeacherId = '';
       selectedTeacherName = '';
 
-      await loadData();
-
       if (!mounted) return;
+
+      Navigator.pop(context);
+
+      setState(() {
+        isSaving = false;
+      });
+
+      await loadData();
 
       showSnackBar('Subject added successfully');
     } catch (error) {
       if (!mounted) return;
 
+      setState(() {
+        isSaving = false;
+      });
+
       showSnackBar(error.toString().replaceAll('Exception: ', ''));
     }
   }
 
-  Future<void> deleteSubject(String subjectId) async {
-    try {
-      await databaseService.deleteSubject(subjectId: subjectId);
+  Future<void> updateSubject({
+    required String subjectId,
+    required String oldSubjectName,
+  }) async {
+    final subjectName = subjectNameController.text.trim();
+    final coefficient = parseCoefficient(coefficientController.text);
 
-      await loadData();
+    if (subjectName.isEmpty) {
+      showSnackBar('Please enter subject name');
+      return;
+    }
+
+    if (selectedClassId.isEmpty) {
+      showSnackBar('Please select a class');
+      return;
+    }
+
+    if (selectedTeacherId.isEmpty) {
+      showSnackBar('Please select a teacher');
+      return;
+    }
+
+    try {
+      setState(() {
+        isSaving = true;
+      });
+
+      final batch = firestore.batch();
+      final subjectRef = firestore.collection('subjects').doc(subjectId);
+
+      batch.update(subjectRef, {
+        'subjectName': subjectName,
+        'classId': selectedClassId,
+        'className': selectedClassName,
+        'teacherId': selectedTeacherId,
+        'teacherName': selectedTeacherName,
+        'coefficient': coefficient,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+
+      final marksSnapshot = await firestore
+          .collection('marks')
+          .where('subjectId', isEqualTo: subjectId)
+          .get();
+
+      for (final markDoc in marksSnapshot.docs) {
+        batch.update(markDoc.reference, {
+          'subjectName': subjectName,
+          'classId': selectedClassId,
+          'className': selectedClassName,
+          'teacherId': selectedTeacherId,
+          'teacherName': selectedTeacherName,
+          'coefficient': coefficient,
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+      }
+
+      final assignmentsSnapshot = await firestore
+          .collection('assignments')
+          .where('subjectId', isEqualTo: subjectId)
+          .get();
+
+      for (final assignmentDoc in assignmentsSnapshot.docs) {
+        batch.update(assignmentDoc.reference, {
+          'subjectName': subjectName,
+          'classId': selectedClassId,
+          'className': selectedClassName,
+          'teacherId': selectedTeacherId,
+          'teacherName': selectedTeacherName,
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+      }
+
+      final timetableSnapshot = await firestore
+          .collection('timetables')
+          .where('subjectId', isEqualTo: subjectId)
+          .get();
+
+      for (final timetableDoc in timetableSnapshot.docs) {
+        batch.update(timetableDoc.reference, {
+          'subjectName': subjectName,
+          'classId': selectedClassId,
+          'className': selectedClassName,
+          'teacherId': selectedTeacherId,
+          'teacherName': selectedTeacherName,
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+      }
+
+      await batch.commit();
 
       if (!mounted) return;
 
-      showSnackBar('Subject deleted successfully');
+      Navigator.pop(context);
+
+      setState(() {
+        isSaving = false;
+      });
+
+      await loadData();
+
+      showSnackBar('$oldSubjectName updated successfully');
+    } catch (error) {
+      if (!mounted) return;
+
+      setState(() {
+        isSaving = false;
+      });
+
+      showSnackBar(error.toString().replaceAll('Exception: ', ''));
+    }
+  }
+
+  Future<void> removeTeacherFromSubject({
+    required String subjectId,
+    required String subjectName,
+  }) async {
+    try {
+      await firestore.collection('subjects').doc(subjectId).update({
+        'teacherId': '',
+        'teacherName': '',
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+
+      final batch = firestore.batch();
+
+      final marksSnapshot = await firestore
+          .collection('marks')
+          .where('subjectId', isEqualTo: subjectId)
+          .get();
+
+      for (final markDoc in marksSnapshot.docs) {
+        batch.update(markDoc.reference, {
+          'teacherId': '',
+          'teacherName': '',
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+      }
+
+      final assignmentsSnapshot = await firestore
+          .collection('assignments')
+          .where('subjectId', isEqualTo: subjectId)
+          .get();
+
+      for (final assignmentDoc in assignmentsSnapshot.docs) {
+        batch.update(assignmentDoc.reference, {
+          'teacherId': '',
+          'teacherName': '',
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+      }
+
+      await batch.commit();
+
+      await loadData();
+
+      showSnackBar('Teacher removed from $subjectName');
     } catch (error) {
       if (!mounted) return;
 
@@ -145,13 +372,66 @@ class _SubjectManagementScreenState extends State<SubjectManagementScreen> {
     }
   }
 
-  Future<void> confirmDelete(String subjectId, String subjectName) async {
+  Future<void> deleteSubject({
+    required String subjectId,
+    required String subjectName,
+  }) async {
+    try {
+      final batch = firestore.batch();
+
+      batch.delete(firestore.collection('subjects').doc(subjectId));
+
+      final marksSnapshot = await firestore
+          .collection('marks')
+          .where('subjectId', isEqualTo: subjectId)
+          .get();
+
+      for (final markDoc in marksSnapshot.docs) {
+        batch.delete(markDoc.reference);
+      }
+
+      final assignmentsSnapshot = await firestore
+          .collection('assignments')
+          .where('subjectId', isEqualTo: subjectId)
+          .get();
+
+      for (final assignmentDoc in assignmentsSnapshot.docs) {
+        batch.delete(assignmentDoc.reference);
+      }
+
+      final timetableSnapshot = await firestore
+          .collection('timetables')
+          .where('subjectId', isEqualTo: subjectId)
+          .get();
+
+      for (final timetableDoc in timetableSnapshot.docs) {
+        batch.delete(timetableDoc.reference);
+      }
+
+      await batch.commit();
+
+      await loadData();
+
+      showSnackBar('$subjectName deleted successfully');
+    } catch (error) {
+      if (!mounted) return;
+
+      showSnackBar(error.toString().replaceAll('Exception: ', ''));
+    }
+  }
+
+  Future<void> confirmDelete({
+    required String subjectId,
+    required String subjectName,
+  }) async {
     final shouldDelete = await showDialog<bool>(
       context: context,
       builder: (_) {
         return AlertDialog(
           title: const Text('Delete Subject'),
-          content: Text('Are you sure you want to delete $subjectName?'),
+          content: Text(
+            'Are you sure you want to delete $subjectName? Related marks, assignments, and timetable records for this subject will also be deleted.',
+          ),
           actions: [
             TextButton(
               onPressed: () {
@@ -174,7 +454,52 @@ class _SubjectManagementScreenState extends State<SubjectManagementScreen> {
     );
 
     if (shouldDelete == true) {
-      await deleteSubject(subjectId);
+      await deleteSubject(
+        subjectId: subjectId,
+        subjectName: subjectName,
+      );
+    }
+  }
+
+  Future<void> confirmRemoveTeacher({
+    required String subjectId,
+    required String subjectName,
+    required String teacherName,
+  }) async {
+    final shouldRemove = await showDialog<bool>(
+      context: context,
+      builder: (_) {
+        return AlertDialog(
+          title: const Text('Remove Teacher'),
+          content: Text(
+            'Remove $teacherName from $subjectName? The teacher account will not be deleted.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context, false);
+              },
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context, true);
+              },
+              child: const Text(
+                'Remove',
+                style: TextStyle(color: AppColors.danger),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (shouldRemove == true) {
+      await removeTeacherFromSubject(
+        subjectId: subjectId,
+        subjectName: subjectName,
+      );
     }
   }
 
@@ -382,15 +707,57 @@ class _SubjectManagementScreenState extends State<SubjectManagementScreen> {
     );
   }
 
-  void showAddSubjectSheet() {
+  void prepareAddSubject() {
     subjectNameController.clear();
     coefficientController.text = '1';
-
     selectedClassId = '';
     selectedClassName = '';
     selectedTeacherId = '';
     selectedTeacherName = '';
+  }
 
+  void prepareEditSubject(Map<String, dynamic> item) {
+    subjectNameController.text = item['subjectName'] ?? '';
+    coefficientController.text = (item['coefficient'] ?? 1).toString();
+    selectedClassId = item['classId'] ?? '';
+    selectedClassName = item['className'] ?? '';
+    selectedTeacherId = item['teacherId'] ?? '';
+    selectedTeacherName = item['teacherName'] ?? '';
+  }
+
+  void showAddSubjectSheet() {
+    prepareAddSubject();
+
+    showSubjectFormSheet(
+      title: 'Add New Subject',
+      buttonText: 'Save Subject',
+      onSubmit: addSubject,
+    );
+  }
+
+  void showEditSubjectSheet(Map<String, dynamic> item) {
+    final subjectId = item['id'] ?? '';
+    final oldSubjectName = item['subjectName'] ?? 'Subject';
+
+    prepareEditSubject(item);
+
+    showSubjectFormSheet(
+      title: 'Edit Subject',
+      buttonText: 'Update Subject',
+      onSubmit: () {
+        updateSubject(
+          subjectId: subjectId,
+          oldSubjectName: oldSubjectName,
+        );
+      },
+    );
+  }
+
+  void showSubjectFormSheet({
+    required String title,
+    required String buttonText,
+    required VoidCallback onSubmit,
+  }) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -426,10 +793,10 @@ class _SubjectManagementScreenState extends State<SubjectManagementScreen> {
                           padding: 10,
                         ),
                         const SizedBox(width: 12),
-                        const Expanded(
+                        Expanded(
                           child: Text(
-                            'Add New Subject',
-                            style: TextStyle(
+                            title,
+                            style: const TextStyle(
                               fontSize: 22,
                               fontWeight: FontWeight.w900,
                               color: AppColors.textDark,
@@ -452,7 +819,7 @@ class _SubjectManagementScreenState extends State<SubjectManagementScreen> {
                       initialValue:
                           selectedClassId.isEmpty ? null : selectedClassId,
                       decoration: const InputDecoration(
-                        labelText: 'Select Class',
+                        labelText: 'Select / Change Class',
                         prefixIcon: Icon(Icons.class_outlined),
                       ),
                       items: classes.map((schoolClass) {
@@ -491,7 +858,7 @@ class _SubjectManagementScreenState extends State<SubjectManagementScreen> {
                       initialValue:
                           selectedTeacherId.isEmpty ? null : selectedTeacherId,
                       decoration: const InputDecoration(
-                        labelText: 'Assign Teacher',
+                        labelText: 'Assign / Change Teacher',
                         prefixIcon: Icon(Icons.person_outline),
                       ),
                       items: teachers.map((teacher) {
@@ -540,9 +907,20 @@ class _SubjectManagementScreenState extends State<SubjectManagementScreen> {
                       width: double.infinity,
                       height: 52,
                       child: ElevatedButton.icon(
-                        onPressed: addSubject,
-                        icon: const Icon(Icons.add),
-                        label: const Text('Save Subject'),
+                        onPressed: isSaving ? null : onSubmit,
+                        icon: isSaving
+                            ? const SizedBox(
+                                height: 20,
+                                width: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: AppColors.white,
+                                ),
+                              )
+                            : const Icon(Icons.save_outlined),
+                        label: Text(
+                          isSaving ? 'Saving...' : buttonText,
+                        ),
                       ),
                     ),
                   ],
@@ -597,7 +975,7 @@ class _SubjectManagementScreenState extends State<SubjectManagementScreen> {
     final subjectId = item['id'] ?? '';
     final subjectName = item['subjectName'] ?? 'Unnamed Subject';
     final className = item['className'] ?? 'No Class';
-    final teacherName = item['teacherName'] ?? 'No Teacher';
+    final teacherName = item['teacherName'] ?? '';
     final coefficient = item['coefficient'] ?? 1;
 
     return Material(
@@ -631,67 +1009,146 @@ class _SubjectManagementScreenState extends State<SubjectManagementScreen> {
                 ),
               ),
             ),
-            Row(
+            Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                pngIconBox(
-                  imagePath: 'assets/icons/subjects.png',
-                  fallbackIcon: Icons.menu_book_outlined,
-                  size: 56,
-                  padding: 11,
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        subjectName,
-                        style: const TextStyle(
-                          fontSize: 17,
-                          fontWeight: FontWeight.w900,
-                          color: AppColors.textDark,
-                          height: 1.25,
-                        ),
-                      ),
-                      const SizedBox(height: 10),
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    pngIconBox(
+                      imagePath: 'assets/icons/subjects.png',
+                      fallbackIcon: Icons.menu_book_outlined,
+                      size: 56,
+                      padding: 11,
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          smallStatusChip(
-                            text: 'Coeff: $coefficient',
-                            color: AppColors.softGreen,
+                          Text(
+                            subjectName,
+                            style: const TextStyle(
+                              fontSize: 17,
+                              fontWeight: FontWeight.w900,
+                              color: AppColors.textDark,
+                              height: 1.25,
+                            ),
                           ),
-                          smallStatusChip(
-                            text: className.toString().isEmpty
-                                ? 'No class'
-                                : className.toString(),
-                            color: AppColors.primaryBlue,
+                          const SizedBox(height: 10),
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            children: [
+                              smallStatusChip(
+                                text: 'Coeff: $coefficient',
+                                color: AppColors.softGreen,
+                              ),
+                              smallStatusChip(
+                                text: className.toString().isEmpty
+                                    ? 'No class'
+                                    : className.toString(),
+                                color: AppColors.primaryBlue,
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 10),
+                          detailLine(
+                            icon: Icons.person_outline,
+                            text: teacherName.toString().isEmpty
+                                ? 'Teacher: Not assigned'
+                                : 'Teacher: $teacherName',
                           ),
                         ],
                       ),
-                      const SizedBox(height: 10),
-                      detailLine(
-                        icon: Icons.person_outline,
-                        text: teacherName.toString().isEmpty
-                            ? 'Teacher: Not assigned'
-                            : 'Teacher: $teacherName',
-                      ),
-                    ],
-                  ),
+                    ),
+                    PopupMenuButton<String>(
+                      onSelected: (value) {
+                        if (value == 'edit') {
+                          showEditSubjectSheet(item);
+                        }
+
+                        if (value == 'removeTeacher') {
+                          if (teacherName.toString().isEmpty) {
+                            showSnackBar('No teacher assigned to this subject');
+                            return;
+                          }
+
+                          confirmRemoveTeacher(
+                            subjectId: subjectId,
+                            subjectName: subjectName,
+                            teacherName: teacherName,
+                          );
+                        }
+
+                        if (value == 'delete') {
+                          confirmDelete(
+                            subjectId: subjectId,
+                            subjectName: subjectName,
+                          );
+                        }
+                      },
+                      itemBuilder: (context) {
+                        return const [
+                          PopupMenuItem(
+                            value: 'edit',
+                            child: Text('Edit Subject'),
+                          ),
+                          PopupMenuItem(
+                            value: 'removeTeacher',
+                            child: Text('Remove Teacher'),
+                          ),
+                          PopupMenuItem(
+                            value: 'delete',
+                            child: Text('Delete Subject'),
+                          ),
+                        ];
+                      },
+                    ),
+                  ],
                 ),
-                IconButton(
-                  onPressed: () {
-                    confirmDelete(
-                      subjectId,
-                      subjectName,
-                    );
-                  },
-                  icon: const Icon(
-                    Icons.delete_outline,
-                    color: AppColors.danger,
-                  ),
+                const SizedBox(height: 14),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    OutlinedButton.icon(
+                      onPressed: () {
+                        showEditSubjectSheet(item);
+                      },
+                      icon: const Icon(Icons.edit_outlined),
+                      label: const Text('Edit'),
+                    ),
+                    OutlinedButton.icon(
+                      onPressed: teacherName.toString().isEmpty
+                          ? null
+                          : () {
+                              confirmRemoveTeacher(
+                                subjectId: subjectId,
+                                subjectName: subjectName,
+                                teacherName: teacherName,
+                              );
+                            },
+                      icon: const Icon(Icons.person_remove_outlined),
+                      label: const Text('Teacher'),
+                    ),
+                    OutlinedButton.icon(
+                      onPressed: () {
+                        confirmDelete(
+                          subjectId: subjectId,
+                          subjectName: subjectName,
+                        );
+                      },
+                      icon: const Icon(
+                        Icons.delete_outline,
+                        color: AppColors.danger,
+                      ),
+                      label: const Text(
+                        'Delete',
+                        style: TextStyle(color: AppColors.danger),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
