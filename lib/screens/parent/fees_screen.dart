@@ -496,6 +496,111 @@ class _FeesScreenState extends State<FeesScreen> {
     }
   }
 
+  Future<void> updateFee({
+    required String feeId,
+  }) async {
+    final title = titleController.text.trim();
+    final amountText = amountController.text.trim();
+    final note = noteController.text.trim();
+
+    if (feeId.isEmpty) {
+      showSnackBar('Invalid fee record');
+      return;
+    }
+
+    if (title.isEmpty) {
+      showSnackBar('Please enter fee title');
+      return;
+    }
+
+    if (amountText.isEmpty) {
+      showSnackBar('Please enter fee amount');
+      return;
+    }
+
+    final amount = double.tryParse(amountText);
+
+    if (amount == null || amount <= 0) {
+      showSnackBar('Please enter a valid amount');
+      return;
+    }
+
+    if (selectedStudentId.isEmpty) {
+      showSnackBar('Please select a student');
+      return;
+    }
+
+    try {
+      setState(() {
+        isSaving = true;
+      });
+
+      final batch = firestore.batch();
+
+      final feeRef = firestore.collection('fees').doc(feeId);
+
+      batch.update(feeRef, {
+        'title': title,
+        'amount': amount,
+        'studentId': selectedStudentId,
+        'studentName': selectedStudentName,
+        'classId': selectedClassId,
+        'className': selectedClassName,
+        'status': selectedStatus,
+        'note': note,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+
+      final confirmationsSnapshot = await firestore
+          .collection('payment_confirmations')
+          .where('feeId', isEqualTo: feeId)
+          .get();
+
+      for (final confirmationDoc in confirmationsSnapshot.docs) {
+        batch.update(confirmationDoc.reference, {
+          'feeTitle': title,
+          'studentId': selectedStudentId,
+          'studentName': selectedStudentName,
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+      }
+
+      await batch.commit();
+
+      if (!mounted) return;
+
+      Navigator.pop(context);
+
+      titleController.clear();
+      amountController.clear();
+      noteController.clear();
+
+      selectedStudentId = '';
+      selectedStudentName = '';
+      selectedClassId = '';
+      selectedClassName = '';
+      selectedStatus = 'Unpaid';
+
+      await loadInitialData();
+
+      if (!mounted) return;
+
+      setState(() {
+        isSaving = false;
+      });
+
+      showSnackBar('Fee record updated successfully');
+    } catch (error) {
+      if (!mounted) return;
+
+      setState(() {
+        isSaving = false;
+      });
+
+      showSnackBar(error.toString().replaceAll('Exception: ', ''));
+    }
+  }
+
   Future<void> updateFeeStatus({
     required String feeId,
     required String status,
@@ -525,7 +630,20 @@ class _FeesScreenState extends State<FeesScreen> {
 
   Future<void> deleteFee(String feeId) async {
     try {
-      await firestore.collection('fees').doc(feeId).delete();
+      final batch = firestore.batch();
+
+      batch.delete(firestore.collection('fees').doc(feeId));
+
+      final confirmationsSnapshot = await firestore
+          .collection('payment_confirmations')
+          .where('feeId', isEqualTo: feeId)
+          .get();
+
+      for (final confirmationDoc in confirmationsSnapshot.docs) {
+        batch.delete(confirmationDoc.reference);
+      }
+
+      await batch.commit();
 
       await loadInitialData();
 
@@ -1336,6 +1454,186 @@ class _FeesScreenState extends State<FeesScreen> {
     );
   }
 
+  void showEditFeeSheet(Map<String, dynamic> fee) {
+    titleController.text = fee['title'] ?? '';
+    amountController.text = formatAmount(fee['amount']);
+    noteController.text = fee['note'] ?? '';
+
+    selectedStudentId = fee['studentId'] ?? '';
+    selectedStudentName = fee['studentName'] ?? '';
+    selectedClassId = fee['classId'] ?? '';
+    selectedClassName = fee['className'] ?? '';
+    selectedStatus = fee['status'] ?? 'Unpaid';
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppColors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(28),
+        ),
+      ),
+      builder: (sheetContext) {
+        return StatefulBuilder(
+          builder: (sheetContext, setModalState) {
+            return Padding(
+              padding: EdgeInsets.only(
+                left: 24,
+                right: 24,
+                top: 24,
+                bottom: MediaQuery.of(sheetContext).viewInsets.bottom + 24,
+              ),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    sheetHandle(),
+                    const SizedBox(height: 18),
+                    Row(
+                      children: [
+                        pngIconBox(
+                          imagePath: 'assets/icons/fees.png',
+                          fallbackIcon: Icons.edit_outlined,
+                          size: 48,
+                          padding: 10,
+                        ),
+                        const SizedBox(width: 12),
+                        const Expanded(
+                          child: Text(
+                            'Edit Fee Record',
+                            style: TextStyle(
+                              fontSize: 22,
+                              fontWeight: FontWeight.w900,
+                              color: AppColors.textDark,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 18),
+                    TextField(
+                      controller: titleController,
+                      decoration: const InputDecoration(
+                        labelText: 'Fee Title',
+                        hintText: 'Example: First Semester Tuition',
+                        prefixIcon: Icon(Icons.title_outlined),
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    TextField(
+                      controller: amountController,
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
+                      decoration: const InputDecoration(
+                        labelText: 'Amount',
+                        hintText: 'Example: 500',
+                        prefixIcon: Icon(Icons.payments_outlined),
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    DropdownButtonFormField<String>(
+                      initialValue:
+                          selectedStudentId.isEmpty ? null : selectedStudentId,
+                      decoration: const InputDecoration(
+                        labelText: 'Select Student',
+                        prefixIcon: Icon(Icons.person_outline),
+                      ),
+                      items: students.map((student) {
+                        return DropdownMenuItem<String>(
+                          value: student['id'],
+                          child: Text(student['fullName'] ?? 'Unknown Student'),
+                        );
+                      }).toList(),
+                      onChanged: (value) {
+                        if (value == null) return;
+
+                        final selectedStudent = students.firstWhere(
+                          (student) => student['id'] == value,
+                          orElse: () => {},
+                        );
+
+                        setModalState(() {
+                          selectedStudentId = value;
+                          selectedStudentName =
+                              selectedStudent['fullName'] ?? '';
+                          selectedClassId = selectedStudent['classId'] ?? '';
+                          selectedClassName =
+                              selectedStudent['className'] ?? '';
+                        });
+                      },
+                    ),
+                    const SizedBox(height: 14),
+                    DropdownButtonFormField<String>(
+                      initialValue: selectedStatus,
+                      decoration: const InputDecoration(
+                        labelText: 'Payment Status',
+                        prefixIcon: Icon(Icons.verified_outlined),
+                      ),
+                      items: statuses.map((status) {
+                        return DropdownMenuItem<String>(
+                          value: status,
+                          child: Text(status),
+                        );
+                      }).toList(),
+                      onChanged: (value) {
+                        if (value == null) return;
+
+                        setModalState(() {
+                          selectedStatus = value;
+                        });
+                      },
+                    ),
+                    const SizedBox(height: 14),
+                    TextField(
+                      controller: noteController,
+                      minLines: 3,
+                      maxLines: 5,
+                      decoration: const InputDecoration(
+                        labelText: 'Note',
+                        hintText: 'Optional note',
+                        prefixIcon: Icon(Icons.note_alt_outlined),
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 52,
+                      child: ElevatedButton.icon(
+                        onPressed: isSaving
+                            ? null
+                            : () {
+                                updateFee(
+                                  feeId: fee['id'] ?? '',
+                                );
+                              },
+                        icon: isSaving
+                            ? const SizedBox(
+                                height: 20,
+                                width: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: AppColors.white,
+                                ),
+                              )
+                            : const Icon(Icons.save_outlined),
+                        label: Text(
+                          isSaving ? 'Saving...' : 'Update Fee',
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
   void showUpdateStatusSheet(Map<String, dynamic> fee) {
     String modalStatus = fee['status'] ?? 'Unpaid';
 
@@ -1960,10 +2258,18 @@ class _FeesScreenState extends State<FeesScreen> {
                           if (canCreateFee)
                             OutlinedButton.icon(
                               onPressed: () {
-                                showUpdateStatusSheet(fee);
+                                showEditFeeSheet(fee);
                               },
                               icon: const Icon(Icons.edit_outlined),
-                              label: const Text('Update'),
+                              label: const Text('Edit'),
+                            ),
+                          if (canCreateFee)
+                            OutlinedButton.icon(
+                              onPressed: () {
+                                showUpdateStatusSheet(fee);
+                              },
+                              icon: const Icon(Icons.verified_outlined),
+                              label: const Text('Status'),
                             ),
                           if (isParent && status != 'Paid')
                             ElevatedButton.icon(
