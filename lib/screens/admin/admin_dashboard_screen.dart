@@ -17,7 +17,9 @@ import '../common/profile_screen.dart';
 import '../parent/fees_screen.dart';
 import '../student/results_screen.dart';
 import '../student/timetable_screen.dart';
+import '../teacher/add_marks_screen.dart';
 import '../teacher/assignments_screen.dart';
+import 'admin_attendance_screen.dart';
 import 'class_management_screen.dart';
 import 'subject_management_screen.dart';
 import 'user_management_screen.dart';
@@ -42,9 +44,15 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   String adminId = '';
 
   int studentsCount = 0;
+  int teachersCount = 0;
+  int classesCount = 0;
+  int subjectsCount = 0;
+  int attendanceCount = 0;
   int timetableCount = 0;
   int feesCount = 0;
+  int assignmentsCount = 0;
   int notificationsCount = 0;
+  int reportsCount = 0;
 
   @override
   void initState() {
@@ -60,15 +68,29 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       final authProvider = context.read<AuthProvider>();
       adminId = authProvider.userId ?? '';
 
+      setState(() {
+        isLoadingStats = true;
+      });
+
       final studentsSnapshot = await firestore
           .collection('users')
           .where('role', isEqualTo: 'Student')
           .where('isActive', isEqualTo: true)
           .get();
 
-      final timetableSnapshot = await firestore.collection('timetables').get();
+      final teachersSnapshot = await firestore
+          .collection('users')
+          .where('role', isEqualTo: 'Teacher')
+          .where('isActive', isEqualTo: true)
+          .get();
 
+      final classesSnapshot = await firestore.collection('classes').get();
+      final subjectsSnapshot = await firestore.collection('subjects').get();
+      final attendanceSnapshot = await firestore.collection('attendance').get();
+      final timetableSnapshot = await firestore.collection('timetables').get();
       final feesSnapshot = await firestore.collection('fees').get();
+      final assignmentsSnapshot = await firestore.collection('assignments').get();
+      final reportsSnapshot = await firestore.collection('ai_reports').get();
 
       int unreadNotifications = 0;
 
@@ -86,8 +108,14 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
 
       setState(() {
         studentsCount = studentsSnapshot.docs.length;
+        teachersCount = teachersSnapshot.docs.length;
+        classesCount = classesSnapshot.docs.length;
+        subjectsCount = subjectsSnapshot.docs.length;
+        attendanceCount = attendanceSnapshot.docs.length;
         timetableCount = timetableSnapshot.docs.length;
         feesCount = feesSnapshot.docs.length;
+        assignmentsCount = assignmentsSnapshot.docs.length;
+        reportsCount = reportsSnapshot.docs.length;
         notificationsCount = unreadNotifications;
         isLoadingStats = false;
       });
@@ -132,12 +160,59 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     );
   }
 
+  void openAdminAttendance() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => const AdminAttendanceScreen(),
+      ),
+    );
+  }
+
+  Widget pngIconBox({
+    required String imagePath,
+    required IconData fallbackIcon,
+    Color color = AppColors.primaryBlue,
+    double size = 54,
+    double padding = 11,
+  }) {
+    return Container(
+      height: size,
+      width: size,
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(size * 0.36),
+      ),
+      child: Padding(
+        padding: EdgeInsets.all(padding),
+        child: Image.asset(
+          imagePath,
+          fit: BoxFit.contain,
+          errorBuilder: (context, error, stackTrace) {
+            return Icon(
+              fallbackIcon,
+              color: color,
+              size: size * 0.52,
+            );
+          },
+        ),
+      ),
+    );
+  }
+
   Widget headerCard() {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        gradient: AppColors.cardBlueGradient,
+        gradient: const LinearGradient(
+          colors: [
+            AppColors.primaryBlue,
+            AppColors.darkBlue,
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
         borderRadius: BorderRadius.circular(28),
         boxShadow: [
           BoxShadow(
@@ -216,7 +291,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     ),
                     const SizedBox(height: 6),
                     Text(
-                      'Manage school users, modules, reports, and AI tools.',
+                      'Manage users, classes, subjects, attendance, timetable, fees, results, reports, and AI tools.',
                       style: TextStyle(
                         color: AppColors.white.withValues(alpha: 0.85),
                         fontSize: 13,
@@ -253,7 +328,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           decoration: BoxDecoration(
             color: AppColors.white,
             borderRadius: BorderRadius.circular(24),
-            border: Border.all(color: AppColors.softBorder),
+            border: Border.all(
+              color: AppColors.border,
+            ),
             boxShadow: [
               BoxShadow(
                 color: Colors.black.withValues(alpha: 0.045),
@@ -265,27 +342,12 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              Container(
-                height: 58,
-                width: 58,
-                decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.10),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.all(11),
-                  child: Image.asset(
-                    imagePath,
-                    fit: BoxFit.contain,
-                    errorBuilder: (context, error, stackTrace) {
-                      return Icon(
-                        icon,
-                        color: color,
-                        size: 32,
-                      );
-                    },
-                  ),
-                ),
+              pngIconBox(
+                imagePath: imagePath,
+                fallbackIcon: icon,
+                color: color,
+                size: 56,
+                padding: 11,
               ),
               const SizedBox(width: 14),
               Expanded(
@@ -328,48 +390,166 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     );
   }
 
+  void openModule(String title) {
+    if (title == 'Add Marks') {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => const AddMarksScreen(),
+        ),
+      );
+    }
+
+    if (title == 'Announcements') {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => const AnnouncementsScreen(role: 'Admin'),
+        ),
+      );
+    }
+
+    if (title == 'Assignments') {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => const AssignmentsScreen(role: 'Admin'),
+        ),
+      );
+    }
+
+    if (title == 'Attendance') {
+      openAdminAttendance();
+    }
+
+    if (title == 'Class Management') {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => const ClassManagementScreen(),
+        ),
+      );
+    }
+
+    if (title == 'Fees') {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => const FeesScreen(role: 'Admin'),
+        ),
+      );
+    }
+
+    if (title == 'Notifications') {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => const NotificationsScreen(role: 'Admin'),
+        ),
+      );
+    }
+
+    if (title == 'Parent Messages') {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => const MessagesScreen(
+            role: 'Admin',
+            targetRole: 'Parent',
+          ),
+        ),
+      );
+    }
+
+    if (title == 'Reports') {
+      openAIReportGenerator();
+    }
+
+    if (title == 'Student Results') {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => const ResultsScreen(),
+        ),
+      );
+    }
+
+    if (title == 'Subject Management') {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => const SubjectManagementScreen(),
+        ),
+      );
+    }
+
+    if (title == 'Teacher Messages') {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => const MessagesScreen(
+            role: 'Admin',
+            targetRole: 'Teacher',
+          ),
+        ),
+      );
+    }
+
+    if (title == 'Timetable') {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => const TimetableScreen(role: 'Admin'),
+        ),
+      );
+    }
+
+    if (title == 'User Management') {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => const UserManagementScreen(),
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final modules = [
       {
-        'title': 'User Management',
-        'icon': Icons.manage_accounts_outlined,
-        'imagePath': 'assets/icons/users.png',
-      },
-      {
-        'title': 'Class Management',
-        'icon': Icons.apartment_outlined,
-        'imagePath': 'assets/icons/classes.png',
-      },
-      {
-        'title': 'Subject Management',
-        'icon': Icons.menu_book_outlined,
-        'imagePath': 'assets/icons/subjects.png',
-      },
-      {
-        'title': 'Timetable',
-        'icon': Icons.calendar_month_outlined,
-        'imagePath': 'assets/icons/timetable.png',
-      },
-      {
-        'title': 'Student Results',
-        'icon': Icons.bar_chart_outlined,
-        'imagePath': 'assets/icons/results.png',
-      },
-      {
-        'title': 'Assignments',
-        'icon': Icons.assignment_outlined,
-        'imagePath': 'assets/icons/assignments.png',
-      },
-      {
-        'title': 'Fees',
-        'icon': Icons.account_balance_wallet_outlined,
-        'imagePath': 'assets/icons/fees.png',
+        'title': 'Add Marks',
+        'icon': Icons.edit_note_outlined,
+        'imagePath': 'assets/icons/add_marks.png',
       },
       {
         'title': 'Announcements',
         'icon': Icons.campaign_outlined,
         'imagePath': 'assets/icons/announcements.png',
+      },
+      {
+        'title': 'Assignments',
+        'icon': Icons.assignment_outlined,
+        'imagePath': 'assets/icons/assignments.png',
+        'badgeText': assignmentsCount > 0 ? assignmentsCount.toString() : '',
+      },
+      {
+        'title': 'Attendance',
+        'icon': Icons.fact_check_outlined,
+        'imagePath': 'assets/icons/attendance.png',
+        'badgeText': attendanceCount > 0 ? attendanceCount.toString() : '',
+      },
+      {
+        'title': 'Class Management',
+        'icon': Icons.apartment_outlined,
+        'imagePath': 'assets/icons/classes.png',
+        'badgeText': classesCount > 0 ? classesCount.toString() : '',
+      },
+      {
+        'title': 'Fees',
+        'icon': Icons.account_balance_wallet_outlined,
+        'imagePath': 'assets/icons/fees.png',
+        'badgeText': feesCount > 0 ? feesCount.toString() : '',
       },
       {
         'title': 'Notifications',
@@ -383,14 +563,37 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         'imagePath': 'assets/icons/messages.png',
       },
       {
+        'title': 'Reports',
+        'icon': Icons.description_outlined,
+        'imagePath': 'assets/icons/ai_report.png',
+        'badgeText': reportsCount > 0 ? reportsCount.toString() : '',
+      },
+      {
+        'title': 'Student Results',
+        'icon': Icons.bar_chart_outlined,
+        'imagePath': 'assets/icons/results.png',
+      },
+      {
+        'title': 'Subject Management',
+        'icon': Icons.menu_book_outlined,
+        'imagePath': 'assets/icons/subjects.png',
+        'badgeText': subjectsCount > 0 ? subjectsCount.toString() : '',
+      },
+      {
         'title': 'Teacher Messages',
         'icon': Icons.support_agent_outlined,
         'imagePath': 'assets/icons/teacher_messages.png',
       },
       {
-        'title': 'Reports',
-        'icon': Icons.description_outlined,
-        'imagePath': 'assets/icons/reports.png',
+        'title': 'Timetable',
+        'icon': Icons.calendar_month_outlined,
+        'imagePath': 'assets/icons/timetable.png',
+        'badgeText': timetableCount > 0 ? timetableCount.toString() : '',
+      },
+      {
+        'title': 'User Management',
+        'icon': Icons.manage_accounts_outlined,
+        'imagePath': 'assets/icons/users.png',
       },
     ];
 
@@ -412,242 +615,134 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         ],
       ),
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(18),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              headerCard(),
+        child: RefreshIndicator(
+          onRefresh: loadDashboardStats,
+          child: SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.all(18),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                headerCard(),
+                const SizedBox(height: 22),
 
-              const SizedBox(height: 22),
-
-              GridView.count(
-                crossAxisCount: 2,
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                mainAxisSpacing: 14,
-                crossAxisSpacing: 14,
-                childAspectRatio: 1.45,
-                children: [
-                  DashboardCard(
-                    title: 'Students',
-                    value: statValue(studentsCount),
-                    icon: Icons.school_outlined,
-                    imagePath: 'assets/icons/students.png',
-                  ),
-                  DashboardCard(
-                    title: 'Timetables',
-                    value: statValue(timetableCount),
-                    icon: Icons.calendar_month_outlined,
-                    imagePath: 'assets/icons/timetable.png',
-                  ),
-                  DashboardCard(
-                    title: 'Fee Records',
-                    value: statValue(feesCount),
-                    icon: Icons.account_balance_wallet_outlined,
-                    imagePath: 'assets/icons/fees.png',
-                  ),
-                  DashboardCard(
-                    title: 'Unread Notices',
-                    value: statValue(notificationsCount),
-                    icon: Icons.notifications_outlined,
-                    imagePath: 'assets/icons/notifications.png',
-                  ),
-                ],
-              ),
-
-              const SizedBox(height: 26),
-
-              const SectionTitle(
-                title: 'School Modules',
-                icon: Icons.dashboard_outlined,
-                imagePath: 'assets/icons/modules.png',
-              ),
-
-              const SizedBox(height: 14),
-
-              GridView.builder(
-                itemCount: modules.length,
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                GridView.count(
                   crossAxisCount: 2,
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
                   mainAxisSpacing: 14,
                   crossAxisSpacing: 14,
-                  childAspectRatio: 1.05,
+                  childAspectRatio: 1.45,
+                  children: [
+                    DashboardCard(
+                      title: 'Students',
+                      value: statValue(studentsCount),
+                      icon: Icons.school_outlined,
+                      imagePath: 'assets/icons/student.png',
+                    ),
+                    DashboardCard(
+                      title: 'Teachers',
+                      value: statValue(teachersCount),
+                      icon: Icons.person_4_outlined,
+                      imagePath: 'assets/icons/teacher.png',
+                    ),
+                    DashboardCard(
+                      title: 'Classes',
+                      value: statValue(classesCount),
+                      icon: Icons.apartment_outlined,
+                      imagePath: 'assets/icons/classes.png',
+                    ),
+                    DashboardCard(
+                      title: 'Attendance',
+                      value: statValue(attendanceCount),
+                      icon: Icons.fact_check_outlined,
+                      imagePath: 'assets/icons/attendance.png',
+                    ),
+                    DashboardCard(
+                      title: 'Fee Records',
+                      value: statValue(feesCount),
+                      icon: Icons.account_balance_wallet_outlined,
+                      imagePath: 'assets/icons/fees.png',
+                    ),
+                    DashboardCard(
+                      title: 'Unread Notices',
+                      value: statValue(notificationsCount),
+                      icon: Icons.notifications_outlined,
+                      imagePath: 'assets/icons/notifications.png',
+                    ),
+                  ],
                 ),
-                itemBuilder: (context, index) {
-                  final title = modules[index]['title'] as String;
 
-                  return ModuleCard(
-                    title: title,
-                    icon: modules[index]['icon'] as IconData,
-                    imagePath: modules[index]['imagePath'] as String,
-                    badgeText: modules[index]['badgeText'] as String?,
-                    onTap: () {
-                      if (title == 'Announcements') {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) =>
-                                const AnnouncementsScreen(role: 'Admin'),
-                          ),
-                        );
-                      }
+                const SizedBox(height: 26),
+                const SectionTitle(title: 'School Modules'),
+                const SizedBox(height: 14),
 
-                      if (title == 'Assignments') {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) =>
-                                const AssignmentsScreen(role: 'Admin'),
-                          ),
-                        );
-                      }
+                GridView.builder(
+                  itemCount: modules.length,
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 2,
+                    mainAxisSpacing: 14,
+                    crossAxisSpacing: 14,
+                    childAspectRatio: 1.05,
+                  ),
+                  itemBuilder: (context, index) {
+                    final title = modules[index]['title'] as String;
 
-                      if (title == 'Class Management') {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const ClassManagementScreen(),
-                          ),
-                        );
-                      }
+                    return ModuleCard(
+                      title: title,
+                      icon: modules[index]['icon'] as IconData,
+                      imagePath: modules[index]['imagePath'] as String,
+                      badgeText: modules[index]['badgeText'] as String?,
+                      onTap: () {
+                        openModule(title);
+                      },
+                    );
+                  },
+                ),
 
-                      if (title == 'Fees') {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const FeesScreen(role: 'Admin'),
-                          ),
-                        );
-                      }
+                const SizedBox(height: 26),
+                const SectionTitle(title: 'AI Tools'),
+                const SizedBox(height: 14),
 
-                      if (title == 'Notifications') {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) =>
-                                const NotificationsScreen(role: 'Admin'),
-                          ),
-                        );
-                      }
+                aiToolCard(
+                  icon: Icons.smart_toy_outlined,
+                  imagePath: 'assets/icons/ai_assistant.png',
+                  title: 'AI Assistant',
+                  description:
+                      'Summarize users, attendance, marks, fees, assignments, announcements, and generate school insights.',
+                  color: AppColors.primaryBlue,
+                  onTap: openAIAssistant,
+                ),
 
-                      if (title == 'Parent Messages') {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const MessagesScreen(
-                              role: 'Admin',
-                              targetRole: 'Parent',
-                            ),
-                          ),
-                        );
-                      }
+                const SizedBox(height: 14),
 
-                      if (title == 'Reports') {
-                        openAIReportGenerator();
-                      }
+                aiToolCard(
+                  icon: Icons.description_outlined,
+                  imagePath: 'assets/icons/ai_report.png',
+                  title: 'AI Report Generator',
+                  description:
+                      'Create school, class, attendance, assignment, fee, timetable, and performance reports.',
+                  color: AppColors.softGreen,
+                  onTap: openAIReportGenerator,
+                ),
 
-                      if (title == 'Student Results') {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const ResultsScreen(),
-                          ),
-                        );
-                      }
+                const SizedBox(height: 14),
 
-                      if (title == 'Subject Management') {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const SubjectManagementScreen(),
-                          ),
-                        );
-                      }
+                aiToolCard(
+                  icon: Icons.analytics_outlined,
+                  imagePath: 'assets/icons/ai_performance.png',
+                  title: 'AI Performance Analysis',
+                  description:
+                      'Detect attendance risk, weak subjects, assignment issues, and student progress problems.',
+                  color: AppColors.primaryBlue,
+                  onTap: openAIPerformanceAnalysis,
+                ),
 
-                      if (title == 'Teacher Messages') {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const MessagesScreen(
-                              role: 'Admin',
-                              targetRole: 'Teacher',
-                            ),
-                          ),
-                        );
-                      }
-
-                      if (title == 'Timetable') {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) =>
-                                const TimetableScreen(role: 'Admin'),
-                          ),
-                        );
-                      }
-
-                      if (title == 'User Management') {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const UserManagementScreen(),
-                          ),
-                        );
-                      }
-                    },
-                  );
-                },
-              ),
-
-              const SizedBox(height: 26),
-
-              const SectionTitle(
-                title: 'AI Tools',
-                icon: Icons.smart_toy_outlined,
-                imagePath: 'assets/icons/ai_assistant.png',
-              ),
-
-              const SizedBox(height: 14),
-
-              aiToolCard(
-                icon: Icons.smart_toy_outlined,
-                imagePath: 'assets/icons/ai_assistant.png',
-                title: 'AI Assistant',
-                description:
-                    'Generate reports, summarize attendance, and improve announcements.',
-                color: AppColors.primaryBlue,
-                onTap: openAIAssistant,
-              ),
-
-              const SizedBox(height: 14),
-
-              aiToolCard(
-                icon: Icons.description_outlined,
-                imagePath: 'assets/icons/reports.png',
-                title: 'AI Report Generator',
-                description:
-                    'Create school, class, attendance, assignment, fee, timetable, and performance reports.',
-                color: AppColors.softGreen,
-                onTap: openAIReportGenerator,
-              ),
-
-              const SizedBox(height: 14),
-
-              aiToolCard(
-                icon: Icons.analytics_outlined,
-                imagePath: 'assets/icons/analytics.png',
-                title: 'AI Performance Analysis',
-                description:
-                    'Detect attendance risk and summarize student progress.',
-                color: AppColors.primaryBlue,
-                onTap: openAIPerformanceAnalysis,
-              ),
-
-              const SizedBox(height: 20),
-            ],
+                const SizedBox(height: 20),
+              ],
+            ),
           ),
         ),
       ),
@@ -663,27 +758,17 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             Navigator.push(
               context,
               MaterialPageRoute(
-                builder: (_) => const TimetableScreen(role: 'Admin'),
+                builder: (_) => const UserManagementScreen(),
               ),
             );
           }
 
           if (index == 2) {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => const FeesScreen(role: 'Admin'),
-              ),
-            );
+            openAdminAttendance();
           }
 
           if (index == 3) {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => const NotificationsScreen(role: 'Admin'),
-              ),
-            );
+            openAIAssistant();
           }
 
           if (index == 4) {
@@ -701,16 +786,16 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             label: 'Home',
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.calendar_month_outlined),
-            label: 'Timetable',
+            icon: Icon(Icons.manage_accounts_outlined),
+            label: 'Users',
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.account_balance_wallet_outlined),
-            label: 'Fees',
+            icon: Icon(Icons.fact_check_outlined),
+            label: 'Attendance',
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.notifications_outlined),
-            label: 'Notices',
+            icon: Icon(Icons.smart_toy_outlined),
+            label: 'AI',
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.account_circle_outlined),
