@@ -1107,6 +1107,9 @@ class _FeesScreenState extends State<FeesScreen> {
     required Color color,
   }) {
     return Container(
+      constraints: const BoxConstraints(
+        maxWidth: 190,
+      ),
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.10),
@@ -1114,6 +1117,8 @@ class _FeesScreenState extends State<FeesScreen> {
       ),
       child: Text(
         text,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
         style: TextStyle(
           color: color,
           fontWeight: FontWeight.w800,
@@ -1352,7 +1357,9 @@ class _FeesScreenState extends State<FeesScreen> {
                     const SizedBox(height: 14),
                     TextField(
                       controller: amountController,
-                      keyboardType: TextInputType.number,
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
                       decoration: const InputDecoration(
                         labelText: 'Amount',
                         hintText: 'Example: 500',
@@ -1788,7 +1795,9 @@ class _FeesScreenState extends State<FeesScreen> {
                     const SizedBox(height: 18),
                     TextField(
                       controller: paymentAmountController,
-                      keyboardType: TextInputType.number,
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
                       decoration: const InputDecoration(
                         labelText: 'Amount Paid',
                         prefixIcon: Icon(Icons.payments_outlined),
@@ -2151,6 +2160,7 @@ class _FeesScreenState extends State<FeesScreen> {
     final status = fee['status'] ?? 'Unpaid';
     final note = fee['note'] ?? '';
     final createdAt = fee['createdAt'];
+    final statusColorValue = statusColor(status);
 
     return Material(
       color: Colors.transparent,
@@ -2178,125 +2188,137 @@ class _FeesScreenState extends State<FeesScreen> {
                 height: 82,
                 width: 82,
                 decoration: BoxDecoration(
-                  color: statusColor(status).withValues(alpha: 0.045),
+                  color: statusColorValue.withValues(alpha: 0.045),
                   shape: BoxShape.circle,
                 ),
               ),
             ),
-            Row(
+            Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                pngIconBox(
-                  imagePath: 'assets/icons/fees.png',
-                  fallbackIcon: Icons.payments_outlined,
-                  color: statusColor(status),
-                  size: 56,
-                  padding: 11,
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        title,
-                        style: const TextStyle(
-                          fontSize: 17,
-                          fontWeight: FontWeight.w900,
-                          color: AppColors.textDark,
-                          height: 1.25,
-                        ),
-                      ),
-                      const SizedBox(height: 10),
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    pngIconBox(
+                      imagePath: 'assets/icons/fees.png',
+                      fallbackIcon: Icons.payments_outlined,
+                      color: statusColorValue,
+                      size: 56,
+                      padding: 11,
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          smallStatusChip(
-                            text: '${formatAmount(amount)} MAD',
-                            color: AppColors.primaryBlue,
+                          Text(
+                            title,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 17,
+                              fontWeight: FontWeight.w900,
+                              color: AppColors.textDark,
+                              height: 1.25,
+                            ),
                           ),
-                          smallStatusChip(
-                            text: status,
-                            color: statusColor(status),
+                          const SizedBox(height: 10),
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            children: [
+                              smallStatusChip(
+                                text: '${formatAmount(amount)} MAD',
+                                color: AppColors.primaryBlue,
+                              ),
+                              smallStatusChip(
+                                text: status,
+                                color: statusColorValue,
+                              ),
+                            ],
                           ),
                         ],
                       ),
-                      const SizedBox(height: 10),
-                      if (studentName.toString().isNotEmpty)
-                        detailLine(
-                          icon: Icons.person_outline,
-                          text: 'Student: $studentName',
+                    ),
+                    if (canCreateFee) ...[
+                      const SizedBox(width: 4),
+                      IconButton(
+                        tooltip: 'Delete fee',
+                        onPressed: () {
+                          confirmDeleteFee(
+                            feeId: feeId,
+                            title: title,
+                          );
+                        },
+                        icon: const Icon(
+                          Icons.delete_outline,
+                          color: AppColors.danger,
                         ),
-                      if (className.toString().isNotEmpty) ...[
-                        const SizedBox(height: 6),
-                        detailLine(
-                          icon: Icons.class_outlined,
-                          text: 'Class: $className',
-                        ),
-                      ],
-                      const SizedBox(height: 6),
-                      detailLine(
-                        icon: Icons.calendar_today_outlined,
-                        text: 'Created: ${formatDate(createdAt)}',
-                      ),
-                      if (note.toString().isNotEmpty) ...[
-                        const SizedBox(height: 8),
-                        Text(
-                          'Note: $note',
-                          style: const TextStyle(
-                            color: AppColors.textGrey,
-                            height: 1.4,
-                          ),
-                        ),
-                      ],
-                      const SizedBox(height: 12),
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: [
-                          if (canCreateFee)
-                            OutlinedButton.icon(
-                              onPressed: () {
-                                showEditFeeSheet(fee);
-                              },
-                              icon: const Icon(Icons.edit_outlined),
-                              label: const Text('Edit'),
-                            ),
-                          if (canCreateFee)
-                            OutlinedButton.icon(
-                              onPressed: () {
-                                showUpdateStatusSheet(fee);
-                              },
-                              icon: const Icon(Icons.verified_outlined),
-                              label: const Text('Status'),
-                            ),
-                          if (isParent && status != 'Paid')
-                            ElevatedButton.icon(
-                              onPressed: () {
-                                showPaymentConfirmationSheet(fee);
-                              },
-                              icon: const Icon(Icons.send_outlined),
-                              label: const Text('I Have Paid'),
-                            ),
-                        ],
                       ),
                     ],
-                  ),
+                  ],
                 ),
-                if (canCreateFee)
-                  IconButton(
-                    onPressed: () {
-                      confirmDeleteFee(
-                        feeId: feeId,
-                        title: title,
-                      );
-                    },
-                    icon: const Icon(
-                      Icons.delete_outline,
-                      color: AppColors.danger,
+                const SizedBox(height: 12),
+                if (studentName.toString().isNotEmpty)
+                  detailLine(
+                    icon: Icons.person_outline,
+                    text: 'Student: $studentName',
+                  ),
+                if (className.toString().isNotEmpty) ...[
+                  const SizedBox(height: 6),
+                  detailLine(
+                    icon: Icons.class_outlined,
+                    text: 'Class: $className',
+                  ),
+                ],
+                const SizedBox(height: 6),
+                detailLine(
+                  icon: Icons.calendar_today_outlined,
+                  text: 'Created: ${formatDate(createdAt)}',
+                ),
+                if (note.toString().isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    'Note: $note',
+                    maxLines: 4,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: AppColors.textGrey,
+                      height: 1.4,
                     ),
                   ),
+                ],
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    if (canCreateFee)
+                      OutlinedButton.icon(
+                        onPressed: () {
+                          showEditFeeSheet(fee);
+                        },
+                        icon: const Icon(Icons.edit_outlined),
+                        label: const Text('Edit'),
+                      ),
+                    if (canCreateFee)
+                      OutlinedButton.icon(
+                        onPressed: () {
+                          showUpdateStatusSheet(fee);
+                        },
+                        icon: const Icon(Icons.verified_outlined),
+                        label: const Text('Status'),
+                      ),
+                    if (isParent && status != 'Paid')
+                      ElevatedButton.icon(
+                        onPressed: () {
+                          showPaymentConfirmationSheet(fee);
+                        },
+                        icon: const Icon(Icons.send_outlined),
+                        label: const Text('I Have Paid'),
+                      ),
+                  ],
+                ),
               ],
             ),
           ],
@@ -2330,6 +2352,8 @@ class _FeesScreenState extends State<FeesScreen> {
         children: [
           Text(
             confirmation['feeTitle'] ?? 'Payment Confirmation',
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
             style: const TextStyle(
               color: AppColors.textDark,
               fontWeight: FontWeight.bold,
@@ -2705,14 +2729,21 @@ class _FeesScreenState extends State<FeesScreen> {
                         else
                           SliverPadding(
                             padding: const EdgeInsets.fromLTRB(18, 18, 18, 90),
-                            sliver: SliverList.separated(
-                              itemCount: fees.length,
-                              separatorBuilder: (context, index) {
-                                return const SizedBox(height: 12);
-                              },
-                              itemBuilder: (context, index) {
-                                return feeCard(fees[index]);
-                              },
+                            sliver: SliverList(
+                              delegate: SliverChildBuilderDelegate(
+                                (context, index) {
+                                  final feeIndex = index ~/ 2;
+
+                                  if (index.isOdd) {
+                                    return const SizedBox(height: 12);
+                                  }
+
+                                  return feeCard(fees[feeIndex]);
+                                },
+                                childCount: fees.isEmpty
+                                    ? 0
+                                    : (fees.length * 2) - 1,
+                              ),
                             ),
                           ),
                       ],
