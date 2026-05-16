@@ -70,7 +70,7 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
     try {
       final authProvider = context.read<AuthProvider>();
 
-      currentRole = authProvider.role ?? widget.role;
+      currentRole = widget.role.isNotEmpty ? widget.role : (authProvider.role ?? 'Student');
       currentUserId = authProvider.userId ?? '';
       currentUserName = authProvider.fullName ?? currentRole;
 
@@ -127,8 +127,8 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
 
     if (currentRole == 'Teacher') {
       classes = loadedClasses.where((schoolClass) {
-        final teacherId = schoolClass['teacherId'] ?? '';
-        final teacherName = schoolClass['teacherName'] ?? '';
+        final teacherId = (schoolClass['teacherId'] ?? '').toString();
+        final teacherName = (schoolClass['teacherName'] ?? '').toString();
 
         return teacherId == currentUserId || teacherName == currentUserName;
       }).toList();
@@ -136,18 +136,9 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
       classes = loadedClasses;
     }
 
-    QuerySnapshot<Map<String, dynamic>> assignmentsSnapshot;
+    final assignmentsSnapshot = await firestore.collection('assignments').get();
 
-    if (currentRole == 'Teacher') {
-      assignmentsSnapshot = await firestore
-          .collection('assignments')
-          .where('teacherId', isEqualTo: currentUserId)
-          .get();
-    } else {
-      assignmentsSnapshot = await firestore.collection('assignments').get();
-    }
-
-    assignments = assignmentsSnapshot.docs.map((doc) {
+    final loadedAssignments = assignmentsSnapshot.docs.map((doc) {
       final data = doc.data();
 
       return {
@@ -165,6 +156,22 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
         'updatedAt': data['updatedAt'],
       };
     }).toList();
+
+    if (currentRole == 'Teacher') {
+      final assignedClassIds = classes.map((item) => item['id']).toSet();
+
+      assignments = loadedAssignments.where((assignment) {
+        final teacherId = (assignment['teacherId'] ?? '').toString();
+        final teacherName = (assignment['teacherName'] ?? '').toString();
+        final classId = (assignment['classId'] ?? '').toString();
+
+        return teacherId == currentUserId ||
+            teacherName == currentUserName ||
+            assignedClassIds.contains(classId);
+      }).toList();
+    } else {
+      assignments = loadedAssignments;
+    }
 
     sortAssignments();
   }
@@ -900,6 +907,9 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
     required Color color,
   }) {
     return Container(
+      constraints: const BoxConstraints(
+        maxWidth: 190,
+      ),
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.10),
@@ -1324,6 +1334,8 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
                       Expanded(
                         child: Text(
                           assignment['title'] ?? 'Assignment Records',
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
                             fontSize: 21,
                             fontWeight: FontWeight.w900,
@@ -1463,6 +1475,8 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
           padding: const EdgeInsets.only(top: 8),
           child: Text(
             '${child['fullName']}: ${submitted ? 'Submitted' : 'Pending'}',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: TextStyle(
               color: submitted ? AppColors.softGreen : AppColors.danger,
               fontWeight: FontWeight.bold,
@@ -1532,153 +1546,163 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
                 ),
               ),
             ),
-            Row(
+            Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                pngIconBox(
-                  imagePath: 'assets/icons/assignments.png',
-                  fallbackIcon: Icons.assignment_outlined,
-                  size: 56,
-                  padding: 11,
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        title,
-                        style: const TextStyle(
-                          fontSize: 17,
-                          fontWeight: FontWeight.w900,
-                          color: AppColors.textDark,
-                          height: 1.25,
-                        ),
-                      ),
-                      const SizedBox(height: 10),
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    pngIconBox(
+                      imagePath: 'assets/icons/assignments.png',
+                      fallbackIcon: Icons.assignment_outlined,
+                      size: 56,
+                      padding: 11,
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          smallStatusChip(
-                            text:
-                                subjectName.isEmpty ? 'No subject' : subjectName,
-                            color: AppColors.primaryBlue,
+                          Text(
+                            title,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 17,
+                              fontWeight: FontWeight.w900,
+                              color: AppColors.textDark,
+                              height: 1.25,
+                            ),
                           ),
-                          smallStatusChip(
-                            text: 'Due: ${formatDueDate(dueDate)}',
-                            color: AppColors.softGreen,
+                          const SizedBox(height: 10),
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            children: [
+                              smallStatusChip(
+                                text: subjectName.isEmpty
+                                    ? 'No subject'
+                                    : subjectName,
+                                color: AppColors.primaryBlue,
+                              ),
+                              smallStatusChip(
+                                text: 'Due: ${formatDueDate(dueDate)}',
+                                color: AppColors.softGreen,
+                              ),
+                            ],
                           ),
                         ],
                       ),
-                      const SizedBox(height: 10),
-                      if (className.toString().isNotEmpty)
-                        detailLine(
-                          icon: Icons.class_outlined,
-                          text: 'Class: $className',
-                        )
-                      else
-                        detailLine(
-                          icon: Icons.class_outlined,
-                          text: 'No class',
-                        ),
-                      const SizedBox(height: 6),
-                      detailLine(
-                        icon: Icons.person_outline,
-                        text: teacherName.isEmpty
-                            ? 'Teacher not assigned'
-                            : 'Teacher: $teacherName',
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                if (className.toString().isNotEmpty)
+                  detailLine(
+                    icon: Icons.class_outlined,
+                    text: 'Class: $className',
+                  )
+                else
+                  detailLine(
+                    icon: Icons.class_outlined,
+                    text: 'No class',
+                  ),
+                const SizedBox(height: 6),
+                detailLine(
+                  icon: Icons.person_outline,
+                  text: teacherName.isEmpty
+                      ? 'Teacher not assigned'
+                      : 'Teacher: $teacherName',
+                ),
+                if (description.toString().isNotEmpty) ...[
+                  const SizedBox(height: 10),
+                  Text(
+                    description,
+                    maxLines: 5,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: AppColors.textDark,
+                      height: 1.45,
+                    ),
+                  ),
+                ],
+                if (isStudent) ...[
+                  const SizedBox(height: 12),
+                  studentSubmissionStatus(assignmentId),
+                  const SizedBox(height: 10),
+                  SizedBox(
+                    height: 44,
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: () async {
+                        final updated = await Navigator.push<bool>(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => AssignmentSubmitScreen(
+                              assignment: assignment,
+                            ),
+                          ),
+                        );
+
+                        if (updated == true) {
+                          await loadInitialData();
+
+                          if (!mounted) return;
+
+                          showSnackBar(
+                            'Assignment submitted successfully',
+                          );
+                        }
+                      },
+                      icon: const Icon(Icons.comment_outlined),
+                      label: Text(
+                        getStudentSubmission(assignmentId) == null
+                            ? 'Submit Comment'
+                            : 'Update Comment',
                       ),
-                      if (description.toString().isNotEmpty) ...[
-                        const SizedBox(height: 10),
-                        Text(
-                          description,
-                          style: const TextStyle(
-                            color: AppColors.textDark,
-                            height: 1.45,
+                    ),
+                  ),
+                ],
+                if (isParent) parentProgressWidget(assignment),
+                if (canCreateAssignment) adminTeacherProgressWidget(assignment),
+                if (canCreateAssignment) ...[
+                  const SizedBox(height: 10),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      OutlinedButton.icon(
+                        onPressed: () {
+                          showAssignmentRecords(assignment);
+                        },
+                        icon: const Icon(Icons.list_alt_outlined),
+                        label: const Text('Records'),
+                      ),
+                      if (canModify)
+                        OutlinedButton.icon(
+                          onPressed: () {
+                            showEditAssignmentSheet(assignment);
+                          },
+                          icon: const Icon(Icons.edit_outlined),
+                          label: const Text('Edit'),
+                        ),
+                      if (canModify)
+                        OutlinedButton.icon(
+                          onPressed: () {
+                            confirmDelete(assignmentId, title);
+                          },
+                          icon: const Icon(
+                            Icons.delete_outline,
+                            color: AppColors.danger,
+                          ),
+                          label: const Text(
+                            'Delete',
+                            style: TextStyle(color: AppColors.danger),
                           ),
                         ),
-                      ],
-                      if (isStudent) ...[
-                        const SizedBox(height: 12),
-                        studentSubmissionStatus(assignmentId),
-                        const SizedBox(height: 10),
-                        SizedBox(
-                          height: 44,
-                          child: ElevatedButton.icon(
-                            onPressed: () async {
-                              final updated = await Navigator.push<bool>(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => AssignmentSubmitScreen(
-                                    assignment: assignment,
-                                  ),
-                                ),
-                              );
-
-                              if (updated == true) {
-                                await loadInitialData();
-
-                                if (!mounted) return;
-
-                                showSnackBar(
-                                  'Assignment submitted successfully',
-                                );
-                              }
-                            },
-                            icon: const Icon(Icons.comment_outlined),
-                            label: Text(
-                              getStudentSubmission(assignmentId) == null
-                                  ? 'Submit Comment'
-                                  : 'Update Comment',
-                            ),
-                          ),
-                        ),
-                      ],
-                      if (isParent) parentProgressWidget(assignment),
-                      if (canCreateAssignment)
-                        adminTeacherProgressWidget(assignment),
-                      if (canCreateAssignment) ...[
-                        const SizedBox(height: 10),
-                        Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          children: [
-                            OutlinedButton.icon(
-                              onPressed: () {
-                                showAssignmentRecords(assignment);
-                              },
-                              icon: const Icon(Icons.list_alt_outlined),
-                              label: const Text('Records'),
-                            ),
-                            if (canModify)
-                              OutlinedButton.icon(
-                                onPressed: () {
-                                  showEditAssignmentSheet(assignment);
-                                },
-                                icon: const Icon(Icons.edit_outlined),
-                                label: const Text('Edit'),
-                              ),
-                            if (canModify)
-                              OutlinedButton.icon(
-                                onPressed: () {
-                                  confirmDelete(assignmentId, title);
-                                },
-                                icon: const Icon(
-                                  Icons.delete_outline,
-                                  color: AppColors.danger,
-                                ),
-                                label: const Text(
-                                  'Delete',
-                                  style: TextStyle(color: AppColors.danger),
-                                ),
-                              ),
-                          ],
-                        ),
-                      ],
                     ],
                   ),
-                ),
+                ],
               ],
             ),
           ],
@@ -1799,28 +1823,46 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
                       ),
                     ),
                   )
-                : assignments.isEmpty
-                    ? emptyState()
-                    : RefreshIndicator(
-                        onRefresh: loadInitialData,
-                        child: ListView.separated(
-                          padding: const EdgeInsets.fromLTRB(18, 18, 18, 90),
-                          itemCount: assignments.length + 1,
-                          separatorBuilder: (context, index) {
-                            return const SizedBox(height: 12);
-                          },
-                          itemBuilder: (context, index) {
-                            if (index == 0) {
-                              return Padding(
-                                padding: const EdgeInsets.only(bottom: 12),
-                                child: headerCard(),
-                              );
-                            }
-
-                            return assignmentCard(assignments[index - 1]);
-                          },
+                : RefreshIndicator(
+                    onRefresh: loadInitialData,
+                    child: CustomScrollView(
+                      slivers: [
+                        SliverPadding(
+                          padding: const EdgeInsets.fromLTRB(18, 18, 18, 0),
+                          sliver: SliverToBoxAdapter(
+                            child: headerCard(),
+                          ),
                         ),
-                      ),
+                        if (assignments.isEmpty)
+                          SliverFillRemaining(
+                            hasScrollBody: false,
+                            child: emptyState(),
+                          )
+                        else
+                          SliverPadding(
+                            padding: const EdgeInsets.fromLTRB(18, 18, 18, 90),
+                            sliver: SliverList(
+                              delegate: SliverChildBuilderDelegate(
+                                (context, index) {
+                                  final assignmentIndex = index ~/ 2;
+
+                                  if (index.isOdd) {
+                                    return const SizedBox(height: 12);
+                                  }
+
+                                  return assignmentCard(
+                                    assignments[assignmentIndex],
+                                  );
+                                },
+                                childCount: assignments.isEmpty
+                                    ? 0
+                                    : (assignments.length * 2) - 1,
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
       ),
     );
   }
