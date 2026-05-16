@@ -1,9 +1,9 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/constants/app_colors.dart';
 import '../../providers/auth_provider.dart';
-import '../../services/database_service.dart';
 
 class ResultsScreen extends StatefulWidget {
   const ResultsScreen({super.key});
@@ -13,7 +13,7 @@ class ResultsScreen extends StatefulWidget {
 }
 
 class _ResultsScreenState extends State<ResultsScreen> {
-  final DatabaseService databaseService = DatabaseService();
+  final FirebaseFirestore firestore = FirebaseFirestore.instance;
 
   bool isLoading = true;
   bool isLoadingStudents = false;
@@ -48,11 +48,22 @@ class _ResultsScreenState extends State<ResultsScreen> {
     });
   }
 
+  String normalizeRole(String role) {
+    final value = role.trim().toLowerCase();
+
+    if (value == 'admin') return 'Admin';
+    if (value == 'teacher') return 'Teacher';
+    if (value == 'parent') return 'Parent';
+    if (value == 'student') return 'Student';
+
+    return 'Student';
+  }
+
   Future<void> loadInitialData() async {
     try {
       final authProvider = context.read<AuthProvider>();
 
-      currentRole = authProvider.role ?? 'Student';
+      currentRole = normalizeRole(authProvider.role ?? 'Student');
       currentUserId = authProvider.userId ?? '';
       currentUserName = authProvider.fullName ?? currentRole;
 
@@ -68,81 +79,23 @@ class _ResultsScreenState extends State<ResultsScreen> {
         selectedStudentName = '';
       });
 
-      if (currentRole == 'Student') {
-        selectedStudentId = currentUserId;
-        selectedStudentName = currentUserName;
-
-        final loadedMarks = await databaseService.getMarksByStudent(
-          studentId: currentUserId,
-        );
-
-        if (!mounted) return;
-
-        setState(() {
-          marks = loadedMarks;
-          isLoading = false;
-        });
-
-        return;
+      if (currentUserId.isEmpty) {
+        throw Exception('User account not found. Please login again.');
       }
 
-      if (currentRole == 'Parent') {
-        final loadedChildren = await databaseService.getStudentsByParent(
-          parentId: currentUserId,
-        );
-
-        if (!mounted) return;
-
-        students = loadedChildren;
-
-        if (students.length == 1) {
-          selectedStudentId = students.first['id'] ?? '';
-          selectedStudentName = students.first['fullName'] ?? '';
-          selectedClassId = students.first['classId'] ?? '';
-          selectedClassName = students.first['className'] ?? '';
-
-          final loadedMarks = await databaseService.getMarksByStudent(
-            studentId: selectedStudentId,
-          );
-
-          if (!mounted) return;
-
-          setState(() {
-            marks = loadedMarks;
-            isLoading = false;
-          });
-
-          return;
-        }
-
-        setState(() {
-          isLoading = false;
-        });
-
-        return;
+      if (isStudent) {
+        await loadStudentResults();
+      } else if (isParent) {
+        await loadParentResults();
+      } else if (isTeacher) {
+        await loadTeacherResults();
+      } else {
+        await loadAdminResults();
       }
-
-      if (currentRole == 'Teacher') {
-        final teacherClasses = await databaseService.getClassesByTeacher(
-          teacherName: currentUserName,
-        );
-
-        if (!mounted) return;
-
-        setState(() {
-          classes = teacherClasses;
-          isLoading = false;
-        });
-
-        return;
-      }
-
-      final loadedClasses = await databaseService.getClasses();
 
       if (!mounted) return;
 
       setState(() {
-        classes = loadedClasses;
         isLoading = false;
       });
     } catch (error) {
@@ -155,6 +108,184 @@ class _ResultsScreenState extends State<ResultsScreen> {
     }
   }
 
+  Future<void> loadStudentResults() async {
+    selectedStudentId = currentUserId;
+    selectedStudentName = currentUserName;
+
+    final userDoc = await firestore.collection('users').doc(currentUserId).get();
+
+    if (userDoc.exists) {
+      final userData = userDoc.data();
+
+      selectedClassId = userData?['classId'] ?? '';
+      selectedClassName = userData?['className'] ?? '';
+    }
+
+    marks = await getMarksByStudent(currentUserId);
+  }
+
+  Future<void> loadParentResults() async {
+    students = await getStudentsByParent(currentUserId);
+
+    if (students.length == 1) {
+      selectedStudentId = students.first['id'] ?? '';
+      selectedStudentName = students.first['fullName'] ?? '';
+      selectedClassId = students.first['classId'] ?? '';
+      selectedClassName = students.first['className'] ?? '';
+
+      marks = await getMarksByStudent(selectedStudentId);
+    }
+  }
+
+  Future<void> loadTeacherResults() async {
+    final allClasses = await getAllClasses();
+
+    classes = allClasses.where((schoolClass) {
+      final teacherId = (schoolClass['teacherId'] ?? '').toString();
+      final teacherName = (schoolClass['teacherName'] ?? '').toString();
+
+      return teacherId == currentUserId || teacherName == currentUserName;
+    }).toList();
+  }
+
+  Future<void> loadAdminResults() async {
+    classes = await getAllClasses();
+  }
+
+  Future<List<Map<String, dynamic>>> getAllClasses() async {
+    final snapshot = await firestore.collection('classes').get();
+
+    final loadedClasses = snapshot.docs.map((doc) {
+      final data = doc.data();
+
+      return {
+        'id': doc.id,
+        'className': data['className'] ?? '',
+        'level': data['level'] ?? '',
+        'teacherId': data['teacherId'] ?? '',
+        'teacherName': data['teacherName'] ?? '',
+      };
+    }).toList();
+
+    loadedClasses.sort((a, b) {
+      return (a['className'] ?? '').toString().compareTo(
+            (b['className'] ?? '').toString(),
+          );
+    });
+
+    return loadedClasses;
+  }
+
+  Future<List<Map<String, dynamic>>> getStudentsByClass(String classId) async {
+    final snapshot = await firestore
+        .collection('users')
+        .where('role', isEqualTo: 'Student')
+        .where('classId', isEqualTo: classId)
+        .where('isActive', isEqualTo: true)
+        .get();
+
+    final loadedStudents = snapshot.docs.map((doc) {
+      final data = doc.data();
+
+      return {
+        'id': doc.id,
+        'fullName': data['fullName'] ?? '',
+        'email': data['email'] ?? '',
+        'classId': data['classId'] ?? '',
+        'className': data['className'] ?? '',
+        'parentId': data['parentId'] ?? '',
+        'parentName': data['parentName'] ?? '',
+      };
+    }).toList();
+
+    loadedStudents.sort((a, b) {
+      return (a['fullName'] ?? '').toString().compareTo(
+            (b['fullName'] ?? '').toString(),
+          );
+    });
+
+    return loadedStudents;
+  }
+
+  Future<List<Map<String, dynamic>>> getStudentsByParent(String parentId) async {
+    final snapshot = await firestore
+        .collection('users')
+        .where('role', isEqualTo: 'Student')
+        .where('parentId', isEqualTo: parentId)
+        .where('isActive', isEqualTo: true)
+        .get();
+
+    final loadedStudents = snapshot.docs.map((doc) {
+      final data = doc.data();
+
+      return {
+        'id': doc.id,
+        'fullName': data['fullName'] ?? '',
+        'email': data['email'] ?? '',
+        'classId': data['classId'] ?? '',
+        'className': data['className'] ?? '',
+        'parentId': data['parentId'] ?? '',
+        'parentName': data['parentName'] ?? '',
+      };
+    }).toList();
+
+    loadedStudents.sort((a, b) {
+      return (a['fullName'] ?? '').toString().compareTo(
+            (b['fullName'] ?? '').toString(),
+          );
+    });
+
+    return loadedStudents;
+  }
+
+  Future<List<Map<String, dynamic>>> getMarksByStudent(String studentId) async {
+    if (studentId.isEmpty) {
+      return [];
+    }
+
+    final snapshot = await firestore
+        .collection('marks')
+        .where('studentId', isEqualTo: studentId)
+        .get();
+
+    final loadedMarks = snapshot.docs.map((doc) {
+      final data = doc.data();
+
+      return {
+        'id': doc.id,
+        'studentId': data['studentId'] ?? '',
+        'studentName': data['studentName'] ?? '',
+        'classId': data['classId'] ?? '',
+        'className': data['className'] ?? '',
+        'subjectId': data['subjectId'] ?? '',
+        'subjectName': data['subjectName'] ?? '',
+        'teacherId': data['teacherId'] ?? '',
+        'teacherName': data['teacherName'] ?? '',
+        'mark': data['mark'] ??
+            data['score'] ??
+            data['value'] ??
+            data['result'] ??
+            data['marks'] ??
+            0,
+        'coefficient': data['coefficient'] ?? 1,
+        'grade': data['grade'] ?? '',
+        'progress': data['progress'] ?? '',
+        'comment': data['comment'] ?? '',
+        'createdAt': data['createdAt'],
+        'updatedAt': data['updatedAt'],
+      };
+    }).toList();
+
+    loadedMarks.sort((a, b) {
+      final subjectA = (a['subjectName'] ?? '').toString();
+      final subjectB = (b['subjectName'] ?? '').toString();
+
+      return subjectA.compareTo(subjectB);
+    });
+
+    return loadedMarks;
+  }
+
   Future<void> loadStudentsByClass(String classId) async {
     try {
       setState(() {
@@ -165,9 +296,7 @@ class _ResultsScreenState extends State<ResultsScreen> {
         selectedStudentName = '';
       });
 
-      final loadedStudents = await databaseService.getStudentsByClass(
-        classId: classId,
-      );
+      final loadedStudents = await getStudentsByClass(classId);
 
       if (!mounted) return;
 
@@ -192,9 +321,7 @@ class _ResultsScreenState extends State<ResultsScreen> {
         marks = [];
       });
 
-      final loadedMarks = await databaseService.getMarksByStudent(
-        studentId: studentId,
-      );
+      final loadedMarks = await getMarksByStudent(studentId);
 
       if (!mounted) return;
 
@@ -286,6 +413,7 @@ class _ResultsScreenState extends State<ResultsScreen> {
   }
 
   String progressStatus(double average) {
+    if (marks.isEmpty) return 'No Result Yet';
     if (average >= 16) return 'Excellent Progress';
     if (average >= 14) return 'Good Progress';
     if (average >= 10) return 'Average Progress';
@@ -299,10 +427,18 @@ class _ResultsScreenState extends State<ResultsScreen> {
     return 'Needs Support';
   }
 
-  Color progressColor(double average) {
-    if (average >= 14) return AppColors.softGreen;
-    if (average >= 10) return Colors.orange;
+  Color progressColor(double value) {
+    if (value >= 14) return AppColors.softGreen;
+    if (value >= 10) return Colors.orange;
     return AppColors.danger;
+  }
+
+  String formattedMark(double value) {
+    if (value == value.roundToDouble()) {
+      return value.toStringAsFixed(0);
+    }
+
+    return value.toStringAsFixed(1);
   }
 
   Widget pngIconBox({
@@ -336,26 +472,78 @@ class _ResultsScreenState extends State<ResultsScreen> {
     );
   }
 
+  Widget smallStatusChip({
+    required String text,
+    required Color color,
+  }) {
+    return Container(
+      constraints: const BoxConstraints(
+        maxWidth: 190,
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Text(
+        text,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(
+          color: color,
+          fontWeight: FontWeight.w800,
+          fontSize: 12,
+        ),
+      ),
+    );
+  }
+
+  Widget detailLine({
+    required IconData icon,
+    required String text,
+  }) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(
+          icon,
+          color: AppColors.textGrey,
+          size: 16,
+        ),
+        const SizedBox(width: 6),
+        Expanded(
+          child: Text(
+            text,
+            style: const TextStyle(
+              color: AppColors.textGrey,
+              height: 1.35,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget headerCard() {
     String title = 'Results';
     String subtitle = 'View marks, averages, and academic progress.';
 
-    if (currentRole == 'Admin') {
+    if (isAdmin) {
       title = 'All Student Results';
       subtitle = 'Select a class and student to review results.';
     }
 
-    if (currentRole == 'Teacher') {
+    if (isTeacher) {
       title = 'Student Results';
       subtitle = 'Review results for your assigned classes.';
     }
 
-    if (currentRole == 'Parent') {
+    if (isParent) {
       title = 'Child Results';
       subtitle = 'Follow your child marks and progress.';
     }
 
-    if (currentRole == 'Student') {
+    if (isStudent) {
       title = 'My Results';
       subtitle = 'Track your marks, comments, and progress.';
     }
@@ -364,14 +552,7 @@ class _ResultsScreenState extends State<ResultsScreen> {
       width: double.infinity,
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            AppColors.primaryBlue,
-            AppColors.darkBlue,
-          ],
-        ),
+        gradient: AppColors.cardBlueGradient,
         borderRadius: BorderRadius.circular(28),
         boxShadow: [
           BoxShadow(
@@ -441,6 +622,8 @@ class _ResultsScreenState extends State<ResultsScreen> {
                   children: [
                     Text(
                       title,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
                         color: AppColors.white,
                         fontSize: 24,
@@ -464,53 +647,6 @@ class _ResultsScreenState extends State<ResultsScreen> {
           ),
         ],
       ),
-    );
-  }
-
-  Widget smallStatusChip({
-    required String text,
-    required Color color,
-  }) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.10),
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Text(
-        text,
-        style: TextStyle(
-          color: color,
-          fontWeight: FontWeight.w800,
-          fontSize: 12,
-        ),
-      ),
-    );
-  }
-
-  Widget detailLine({
-    required IconData icon,
-    required String text,
-  }) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Icon(
-          icon,
-          color: AppColors.textGrey,
-          size: 16,
-        ),
-        const SizedBox(width: 6),
-        Expanded(
-          child: Text(
-            text,
-            style: const TextStyle(
-              color: AppColors.textGrey,
-              height: 1.35,
-            ),
-          ),
-        ),
-      ],
     );
   }
 
@@ -543,7 +679,10 @@ class _ResultsScreenState extends State<ResultsScreen> {
         items: students.map((student) {
           return DropdownMenuItem<String>(
             value: student['id'],
-            child: Text(student['fullName'] ?? 'Unknown Child'),
+            child: Text(
+              student['fullName'] ?? 'Unknown Child',
+              overflow: TextOverflow.ellipsis,
+            ),
           );
         }).toList(),
         onChanged: selectStudent,
@@ -569,6 +708,7 @@ class _ResultsScreenState extends State<ResultsScreen> {
                 value: schoolClass['id'],
                 child: Text(
                   schoolClass['className'] ?? 'Unnamed Class',
+                  overflow: TextOverflow.ellipsis,
                 ),
               );
             }).toList(),
@@ -586,6 +726,7 @@ class _ResultsScreenState extends State<ResultsScreen> {
               value: student['id'],
               child: Text(
                 student['fullName'] ?? 'Unknown Student',
+                overflow: TextOverflow.ellipsis,
               ),
             );
           }).toList(),
@@ -619,6 +760,7 @@ class _ResultsScreenState extends State<ResultsScreen> {
         border: Border.all(color: AppColors.border),
       ),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Icon(
             icon,
@@ -658,6 +800,7 @@ class _ResultsScreenState extends State<ResultsScreen> {
         ],
       ),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           pngIconBox(
             imagePath: 'assets/icons/results.png',
@@ -674,6 +817,8 @@ class _ResultsScreenState extends State<ResultsScreen> {
                   selectedStudentName.isEmpty
                       ? 'Student Results'
                       : '$selectedStudentName Results',
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
                     fontSize: 17,
                     fontWeight: FontWeight.w900,
@@ -695,39 +840,40 @@ class _ResultsScreenState extends State<ResultsScreen> {
                   const SizedBox(height: 6),
                   Text(
                     'Class: $selectedClassName',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
                       color: AppColors.textGrey,
                       height: 1.35,
                     ),
                   ),
                 ],
-                if (marks.isNotEmpty) ...[
-                  const SizedBox(height: 7),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: [
-                      smallStatusChip(
-                        text: 'Subjects: ${marks.length}',
-                        color: AppColors.primaryBlue,
-                      ),
-                      smallStatusChip(
-                        text: 'Passed: ${passedSubjects()}',
-                        color: AppColors.softGreen,
-                      ),
-                      smallStatusChip(
-                        text: 'Weak: ${weakSubjects()}',
-                        color: weakSubjects() == 0
-                            ? AppColors.softGreen
-                            : AppColors.danger,
-                      ),
-                      smallStatusChip(
-                        text: status,
-                        color: progressColor(average),
-                      ),
-                    ],
-                  ),
-                ],
+                const SizedBox(height: 7),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    smallStatusChip(
+                      text: 'Subjects: ${marks.length}',
+                      color: AppColors.primaryBlue,
+                    ),
+                    smallStatusChip(
+                      text: 'Passed: ${passedSubjects()}',
+                      color: AppColors.softGreen,
+                    ),
+                    smallStatusChip(
+                      text: 'Weak: ${weakSubjects()}',
+                      color: weakSubjects() == 0
+                          ? AppColors.softGreen
+                          : AppColors.danger,
+                    ),
+                    smallStatusChip(
+                      text: status,
+                      color:
+                          marks.isEmpty ? AppColors.textGrey : progressColor(average),
+                    ),
+                  ],
+                ),
               ],
             ),
           ),
@@ -741,10 +887,16 @@ class _ResultsScreenState extends State<ResultsScreen> {
     final teacherName = mark['teacherName'] ?? 'Unknown Teacher';
     final className = mark['className'] ?? '';
     final value = parseNumber(mark['mark']);
-    final grade = mark['grade'] ?? progressFromMark(value);
+    final gradeValue = mark['grade'] ?? '';
     final comment = mark['comment'] ?? '';
     final coefficient = parseNumber(mark['coefficient']);
-    final progress = mark['progress'] ?? progressFromMark(value);
+    final progressValue = mark['progress'] ?? '';
+    final progress = progressValue.toString().isEmpty
+        ? progressFromMark(value)
+        : progressValue.toString();
+    final grade = gradeValue.toString().isEmpty
+        ? progressFromMark(value)
+        : gradeValue.toString();
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -760,80 +912,98 @@ class _ResultsScreenState extends State<ResultsScreen> {
           ),
         ],
       ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Stack(
         children: [
-          pngIconBox(
-            imagePath: 'assets/icons/results.png',
-            fallbackIcon: Icons.grade_outlined,
-            color: progressColor(value),
-            size: 56,
-            padding: 11,
+          Positioned(
+            top: -26,
+            right: -24,
+            child: Container(
+              height: 82,
+              width: 82,
+              decoration: BoxDecoration(
+                color: progressColor(value).withValues(alpha: 0.045),
+                shape: BoxShape.circle,
+              ),
+            ),
           ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  subjectName,
-                  style: const TextStyle(
-                    fontSize: 17,
-                    fontWeight: FontWeight.w900,
-                    color: AppColors.textDark,
-                    height: 1.25,
-                  ),
-                ),
-                const SizedBox(height: 10),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              pngIconBox(
+                imagePath: 'assets/icons/results.png',
+                fallbackIcon: Icons.grade_outlined,
+                color: progressColor(value),
+                size: 56,
+                padding: 11,
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    smallStatusChip(
-                      text:
-                          '${value.toStringAsFixed(value % 1 == 0 ? 0 : 1)}/20',
-                      color: progressColor(value),
+                    Text(
+                      subjectName,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w900,
+                        color: AppColors.textDark,
+                        height: 1.25,
+                      ),
                     ),
-                    smallStatusChip(
-                      text: grade.toString(),
-                      color: progressColor(value),
+                    const SizedBox(height: 10),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        smallStatusChip(
+                          text: '${formattedMark(value)}/20',
+                          color: progressColor(value),
+                        ),
+                        smallStatusChip(
+                          text: grade,
+                          color: progressColor(value),
+                        ),
+                        smallStatusChip(
+                          text: 'Progress: $progress',
+                          color: progressColor(value),
+                        ),
+                      ],
                     ),
-                    smallStatusChip(
-                      text: 'Progress: $progress',
-                      color: progressColor(value),
+                    const SizedBox(height: 10),
+                    detailLine(
+                      icon: Icons.class_outlined,
+                      text: className.isEmpty ? 'No class' : className,
                     ),
+                    const SizedBox(height: 6),
+                    detailLine(
+                      icon: Icons.person_outline,
+                      text: 'Teacher: $teacherName',
+                    ),
+                    if (coefficient > 0) ...[
+                      const SizedBox(height: 6),
+                      detailLine(
+                        icon: Icons.tune_outlined,
+                        text: 'Coefficient: ${formattedMark(coefficient)}',
+                      ),
+                    ],
+                    if (comment.toString().isNotEmpty) ...[
+                      const SizedBox(height: 10),
+                      Text(
+                        'Teacher Comment: $comment',
+                        maxLines: 4,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: AppColors.textGrey,
+                          height: 1.4,
+                        ),
+                      ),
+                    ],
                   ],
                 ),
-                const SizedBox(height: 10),
-                detailLine(
-                  icon: Icons.class_outlined,
-                  text: className.isEmpty ? 'No class' : className,
-                ),
-                const SizedBox(height: 6),
-                detailLine(
-                  icon: Icons.person_outline,
-                  text: 'Teacher: $teacherName',
-                ),
-                if (coefficient > 0) ...[
-                  const SizedBox(height: 6),
-                  detailLine(
-                    icon: Icons.tune_outlined,
-                    text:
-                        'Coefficient: ${coefficient.toStringAsFixed(coefficient % 1 == 0 ? 0 : 1)}',
-                  ),
-                ],
-                if (comment.toString().isNotEmpty) ...[
-                  const SizedBox(height: 10),
-                  Text(
-                    'Teacher Comment: $comment',
-                    style: const TextStyle(
-                      color: AppColors.textGrey,
-                      height: 1.4,
-                    ),
-                  ),
-                ],
-              ],
-            ),
+              ),
+            ],
           ),
         ],
       ),
@@ -845,6 +1015,16 @@ class _ResultsScreenState extends State<ResultsScreen> {
 
     if (!isStudent && selectedStudentId.isEmpty) {
       message = 'Select a student to view results.';
+    }
+
+    if (isParent && students.isEmpty) {
+      message =
+          'No child is assigned to this parent account yet. Ask Admin to assign a student to this parent.';
+    }
+
+    if (isTeacher && classes.isEmpty) {
+      message =
+          'No class is assigned to this teacher account yet. Ask Admin to assign a class.';
     }
 
     return Center(
@@ -884,14 +1064,90 @@ class _ResultsScreenState extends State<ResultsScreen> {
     );
   }
 
+  Widget loadingState() {
+    return const Center(
+      child: CircularProgressIndicator(),
+    );
+  }
+
+  Widget errorState() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Text(
+          errorMessage ?? 'Something went wrong',
+          textAlign: TextAlign.center,
+          style: const TextStyle(
+            color: AppColors.danger,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget contentSlivers() {
+    return CustomScrollView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      slivers: [
+        SliverPadding(
+          padding: const EdgeInsets.fromLTRB(18, 18, 18, 0),
+          sliver: SliverToBoxAdapter(
+            child: Column(
+              children: [
+                headerCard(),
+                if (!isStudent) ...[
+                  const SizedBox(height: 18),
+                  selectorSection(),
+                ],
+                const SizedBox(height: 18),
+                summaryCard(),
+              ],
+            ),
+          ),
+        ),
+        if (isLoadingStudents || isLoadingMarks)
+          const SliverFillRemaining(
+            hasScrollBody: false,
+            child: Center(
+              child: CircularProgressIndicator(),
+            ),
+          )
+        else if (marks.isEmpty)
+          SliverFillRemaining(
+            hasScrollBody: false,
+            child: emptyMarksState(),
+          )
+        else
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(18, 18, 18, 24),
+            sliver: SliverList(
+              delegate: SliverChildBuilderDelegate(
+                (context, index) {
+                  final markIndex = index ~/ 2;
+
+                  if (index.isOdd) {
+                    return const SizedBox(height: 12);
+                  }
+
+                  return markCard(marks[markIndex]);
+                },
+                childCount: marks.isEmpty ? 0 : (marks.length * 2) - 1,
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     String title = 'Results';
 
-    if (currentRole == 'Admin') title = 'All Student Results';
-    if (currentRole == 'Teacher') title = 'Student Results';
-    if (currentRole == 'Parent') title = 'Child Results';
-    if (currentRole == 'Student') title = 'My Results';
+    if (isAdmin) title = 'All Student Results';
+    if (isTeacher) title = 'Student Results';
+    if (isParent) title = 'Child Results';
+    if (isStudent) title = 'My Results';
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -906,67 +1162,12 @@ class _ResultsScreenState extends State<ResultsScreen> {
       ),
       body: SafeArea(
         child: isLoading
-            ? const Center(
-                child: CircularProgressIndicator(),
-              )
+            ? loadingState()
             : errorMessage != null
-                ? Center(
-                    child: Padding(
-                      padding: const EdgeInsets.all(24),
-                      child: Text(
-                        errorMessage!,
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          color: AppColors.danger,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  )
-                : Column(
-                    children: [
-                      Padding(
-                        padding: const EdgeInsets.all(18),
-                        child: Column(
-                          children: [
-                            headerCard(),
-                            if (!isStudent) ...[
-                              const SizedBox(height: 18),
-                              selectorSection(),
-                            ],
-                            const SizedBox(height: 18),
-                            summaryCard(),
-                          ],
-                        ),
-                      ),
-                      if (isLoadingStudents || isLoadingMarks)
-                        const Expanded(
-                          child: Center(
-                            child: CircularProgressIndicator(),
-                          ),
-                        )
-                      else if (marks.isEmpty)
-                        Expanded(
-                          child: emptyMarksState(),
-                        )
-                      else
-                        Expanded(
-                          child: RefreshIndicator(
-                            onRefresh: loadInitialData,
-                            child: ListView.separated(
-                              padding:
-                                  const EdgeInsets.fromLTRB(18, 0, 18, 24),
-                              itemCount: marks.length,
-                              separatorBuilder: (context, index) {
-                                return const SizedBox(height: 12);
-                              },
-                              itemBuilder: (context, index) {
-                                return markCard(marks[index]);
-                              },
-                            ),
-                          ),
-                        ),
-                    ],
+                ? errorState()
+                : RefreshIndicator(
+                    onRefresh: loadInitialData,
+                    child: contentSlivers(),
                   ),
       ),
     );
