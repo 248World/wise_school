@@ -48,11 +48,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   int classesCount = 0;
   int subjectsCount = 0;
   int attendanceCount = 0;
-  int timetableCount = 0;
   int feesCount = 0;
-  int assignmentsCount = 0;
   int notificationsCount = 0;
-  int reportsCount = 0;
 
   @override
   void initState() {
@@ -87,10 +84,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       final classesSnapshot = await firestore.collection('classes').get();
       final subjectsSnapshot = await firestore.collection('subjects').get();
       final attendanceSnapshot = await firestore.collection('attendance').get();
-      final timetableSnapshot = await firestore.collection('timetables').get();
       final feesSnapshot = await firestore.collection('fees').get();
-      final assignmentsSnapshot = await firestore.collection('assignments').get();
-      final reportsSnapshot = await firestore.collection('ai_reports').get();
 
       int unreadNotifications = 0;
 
@@ -112,10 +106,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         classesCount = classesSnapshot.docs.length;
         subjectsCount = subjectsSnapshot.docs.length;
         attendanceCount = attendanceSnapshot.docs.length;
-        timetableCount = timetableSnapshot.docs.length;
         feesCount = feesSnapshot.docs.length;
-        assignmentsCount = assignmentsSnapshot.docs.length;
-        reportsCount = reportsSnapshot.docs.length;
         notificationsCount = unreadNotifications;
         isLoadingStats = false;
       });
@@ -398,6 +389,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           builder: (_) => const AddMarksScreen(),
         ),
       );
+      return;
     }
 
     if (title == 'Announcements') {
@@ -407,6 +399,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           builder: (_) => const AnnouncementsScreen(role: 'Admin'),
         ),
       );
+      return;
     }
 
     if (title == 'Assignments') {
@@ -416,10 +409,12 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           builder: (_) => const AssignmentsScreen(role: 'Admin'),
         ),
       );
+      return;
     }
 
     if (title == 'Attendance') {
       openAdminAttendance();
+      return;
     }
 
     if (title == 'Class Management') {
@@ -429,6 +424,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           builder: (_) => const ClassManagementScreen(),
         ),
       );
+      return;
     }
 
     if (title == 'Fees') {
@@ -438,6 +434,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           builder: (_) => const FeesScreen(role: 'Admin'),
         ),
       );
+      return;
     }
 
     if (title == 'Notifications') {
@@ -447,6 +444,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           builder: (_) => const NotificationsScreen(role: 'Admin'),
         ),
       );
+      return;
     }
 
     if (title == 'Parent Messages') {
@@ -459,10 +457,12 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           ),
         ),
       );
+      return;
     }
 
     if (title == 'Reports') {
       openAIReportGenerator();
+      return;
     }
 
     if (title == 'Student Results') {
@@ -472,6 +472,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           builder: (_) => const ResultsScreen(),
         ),
       );
+      return;
     }
 
     if (title == 'Subject Management') {
@@ -481,6 +482,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           builder: (_) => const SubjectManagementScreen(),
         ),
       );
+      return;
     }
 
     if (title == 'Teacher Messages') {
@@ -493,6 +495,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           ),
         ),
       );
+      return;
     }
 
     if (title == 'Timetable') {
@@ -502,6 +505,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           builder: (_) => const TimetableScreen(role: 'Admin'),
         ),
       );
+      return;
     }
 
     if (title == 'User Management') {
@@ -511,6 +515,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           builder: (_) => const UserManagementScreen(),
         ),
       );
+      return;
     }
   }
 
@@ -531,31 +536,27 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         'title': 'Assignments',
         'icon': Icons.assignment_outlined,
         'imagePath': 'assets/icons/assignments.png',
-        'badgeText': assignmentsCount > 0 ? assignmentsCount.toString() : '',
       },
       {
         'title': 'Attendance',
         'icon': Icons.fact_check_outlined,
         'imagePath': 'assets/icons/attendance.png',
-        'badgeText': attendanceCount > 0 ? attendanceCount.toString() : '',
       },
       {
         'title': 'Class Management',
         'icon': Icons.apartment_outlined,
         'imagePath': 'assets/icons/classes.png',
-        'badgeText': classesCount > 0 ? classesCount.toString() : '',
       },
       {
         'title': 'Fees',
         'icon': Icons.account_balance_wallet_outlined,
         'imagePath': 'assets/icons/fees.png',
-        'badgeText': feesCount > 0 ? feesCount.toString() : '',
       },
       {
         'title': 'Notifications',
         'icon': Icons.notifications_outlined,
         'imagePath': 'assets/icons/notifications.png',
-        'badgeText': notificationsCount > 0 ? notificationsCount.toString() : '',
+        'badgeText': notificationsCount > 0 ? notificationsCount.toString() : null,
       },
       {
         'title': 'Parent Messages',
@@ -566,7 +567,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         'title': 'Reports',
         'icon': Icons.description_outlined,
         'imagePath': 'assets/icons/ai_report.png',
-        'badgeText': reportsCount > 0 ? reportsCount.toString() : '',
       },
       {
         'title': 'Student Results',
@@ -577,7 +577,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         'title': 'Subject Management',
         'icon': Icons.menu_book_outlined,
         'imagePath': 'assets/icons/subjects.png',
-        'badgeText': subjectsCount > 0 ? subjectsCount.toString() : '',
       },
       {
         'title': 'Teacher Messages',
@@ -588,7 +587,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         'title': 'Timetable',
         'icon': Icons.calendar_month_outlined,
         'imagePath': 'assets/icons/timetable.png',
-        'badgeText': timetableCount > 0 ? timetableCount.toString() : '',
       },
       {
         'title': 'User Management',
@@ -625,7 +623,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               children: [
                 headerCard(),
                 const SizedBox(height: 22),
-
                 GridView.count(
                   crossAxisCount: 2,
                   shrinkWrap: true,
@@ -665,18 +662,16 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                       imagePath: 'assets/icons/fees.png',
                     ),
                     DashboardCard(
-                      title: 'Unread Notices',
-                      value: statValue(notificationsCount),
-                      icon: Icons.notifications_outlined,
-                      imagePath: 'assets/icons/notifications.png',
+                      title: 'Subjects',
+                      value: statValue(subjectsCount),
+                      icon: Icons.menu_book_outlined,
+                      imagePath: 'assets/icons/subjects.png',
                     ),
                   ],
                 ),
-
                 const SizedBox(height: 26),
                 const SectionTitle(title: 'School Modules'),
                 const SizedBox(height: 14),
-
                 GridView.builder(
                   itemCount: modules.length,
                   shrinkWrap: true,
@@ -688,24 +683,23 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     childAspectRatio: 1.05,
                   ),
                   itemBuilder: (context, index) {
-                    final title = modules[index]['title'] as String;
+                    final module = modules[index];
+                    final title = module['title'] as String;
 
                     return ModuleCard(
                       title: title,
-                      icon: modules[index]['icon'] as IconData,
-                      imagePath: modules[index]['imagePath'] as String,
-                      badgeText: modules[index]['badgeText'] as String?,
+                      icon: module['icon'] as IconData,
+                      imagePath: module['imagePath'] as String,
+                      badgeText: module['badgeText'] as String?,
                       onTap: () {
                         openModule(title);
                       },
                     );
                   },
                 ),
-
                 const SizedBox(height: 26),
                 const SectionTitle(title: 'AI Tools'),
                 const SizedBox(height: 14),
-
                 aiToolCard(
                   icon: Icons.smart_toy_outlined,
                   imagePath: 'assets/icons/ai_assistant.png',
@@ -715,9 +709,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   color: AppColors.primaryBlue,
                   onTap: openAIAssistant,
                 ),
-
                 const SizedBox(height: 14),
-
                 aiToolCard(
                   icon: Icons.description_outlined,
                   imagePath: 'assets/icons/ai_report.png',
@@ -727,9 +719,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   color: AppColors.softGreen,
                   onTap: openAIReportGenerator,
                 ),
-
                 const SizedBox(height: 14),
-
                 aiToolCard(
                   icon: Icons.analytics_outlined,
                   imagePath: 'assets/icons/ai_performance.png',
@@ -739,7 +729,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   color: AppColors.primaryBlue,
                   onTap: openAIPerformanceAnalysis,
                 ),
-
                 const SizedBox(height: 20),
               ],
             ),
@@ -761,14 +750,17 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 builder: (_) => const UserManagementScreen(),
               ),
             );
+            return;
           }
 
           if (index == 2) {
             openAdminAttendance();
+            return;
           }
 
           if (index == 3) {
             openAIAssistant();
+            return;
           }
 
           if (index == 4) {
@@ -778,6 +770,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 builder: (_) => const ProfileScreen(role: 'Admin'),
               ),
             );
+            return;
           }
         },
         items: const [

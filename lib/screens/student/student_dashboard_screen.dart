@@ -37,11 +37,14 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
 
   String studentId = '';
   String classId = '';
+  String className = '';
 
   int assignmentsCount = 0;
   int attendanceCount = 0;
   int notificationsCount = 0;
   int groupChatsCount = 0;
+  int resultsCount = 0;
+  int feesCount = 0;
 
   @override
   void initState() {
@@ -72,10 +75,21 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
       if (userDoc.exists) {
         final userData = userDoc.data();
         classId = userData?['classId'] ?? '';
+        className = userData?['className'] ?? '';
       }
 
       final attendanceSnapshot = await firestore
           .collection('attendance')
+          .where('studentId', isEqualTo: studentId)
+          .get();
+
+      final resultsSnapshot = await firestore
+          .collection('marks')
+          .where('studentId', isEqualTo: studentId)
+          .get();
+
+      final feesSnapshot = await firestore
+          .collection('fees')
           .where('studentId', isEqualTo: studentId)
           .get();
 
@@ -112,6 +126,8 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
         attendanceCount = attendanceSnapshot.docs.length;
         notificationsCount = notificationsSnapshot.docs.length;
         groupChatsCount = loadedGroupChats;
+        resultsCount = resultsSnapshot.docs.length;
+        feesCount = feesSnapshot.docs.length;
         isLoadingStats = false;
       });
     } catch (_) {
@@ -212,7 +228,9 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
                     ),
                     const SizedBox(height: 6),
                     Text(
-                      'View your timetable, assignments, results, group chat, and study support.',
+                      className.isEmpty
+                          ? 'View your timetable, assignments, results, group chat, and study support.'
+                          : 'Class: $className • View timetable, assignments, results, group chat, and study support.',
                       style: TextStyle(
                         color: AppColors.white.withValues(alpha: 0.85),
                         fontSize: 13,
@@ -271,7 +289,6 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
         'title': 'Group Chat',
         'icon': Icons.groups_2_outlined,
         'imagePath': 'assets/icons/group_chat.png',
-        'badgeText': groupChatsCount > 0 ? groupChatsCount.toString() : '',
       },
       {
         'title': 'AI Study Assistant',
@@ -282,7 +299,7 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
         'title': 'Notifications',
         'icon': Icons.notifications_outlined,
         'imagePath': 'assets/icons/notifications.png',
-        'badgeText': notificationsCount > 0 ? notificationsCount.toString() : '',
+        'badgeText': notificationsCount > 0 ? notificationsCount.toString() : null,
       },
     ];
 
@@ -304,9 +321,12 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
         ],
       ),
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(18),
-          child: Column(
+        child: RefreshIndicator(
+          onRefresh: loadDashboardStats,
+          child: SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.all(18),
+            child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               headerCard(),
@@ -332,16 +352,16 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
                     imagePath: 'assets/icons/assignments.png',
                   ),
                   DashboardCard(
-                    title: 'Group Chats',
-                    value: statValue(groupChatsCount),
-                    icon: Icons.groups_2_outlined,
-                    imagePath: 'assets/icons/group_chat.png',
+                    title: 'Results',
+                    value: statValue(resultsCount),
+                    icon: Icons.bar_chart_outlined,
+                    imagePath: 'assets/icons/results.png',
                   ),
                   DashboardCard(
-                    title: 'Unread Notices',
-                    value: statValue(notificationsCount),
-                    icon: Icons.notifications_outlined,
-                    imagePath: 'assets/icons/notifications.png',
+                    title: 'Fees',
+                    value: statValue(feesCount),
+                    icon: Icons.account_balance_wallet_outlined,
+                    imagePath: 'assets/icons/fees.png',
                   ),
                 ],
               ),
@@ -474,6 +494,7 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
             ],
           ),
         ),
+      ),
       ),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: 0,

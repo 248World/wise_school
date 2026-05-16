@@ -408,10 +408,7 @@ class _AdminAttendanceScreenState extends State<AdminAttendanceScreen> {
         return;
       }
 
-      await firestore
-          .collection('attendance')
-          .doc(existingRecord['id'])
-          .delete();
+      await firestore.collection('attendance').doc(existingRecord['id']).delete();
 
       attendanceStatus[studentId] = 'Present';
       noteControllers[studentId]?.clear();
@@ -683,7 +680,7 @@ class _AdminAttendanceScreenState extends State<AdminAttendanceScreen> {
       physics: const NeverScrollableScrollPhysics(),
       mainAxisSpacing: 10,
       crossAxisSpacing: 10,
-      childAspectRatio: 1.18,
+      childAspectRatio: 0.95,
       children: [
         summaryBox(
           title: 'Present',
@@ -714,7 +711,7 @@ class _AdminAttendanceScreenState extends State<AdminAttendanceScreen> {
     required IconData icon,
   }) {
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
         color: AppColors.white,
         borderRadius: BorderRadius.circular(22),
@@ -729,28 +726,33 @@ class _AdminAttendanceScreenState extends State<AdminAttendanceScreen> {
       ),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
+        mainAxisSize: MainAxisSize.min,
         children: [
           Icon(
             icon,
             color: color,
-            size: 24,
+            size: 22,
           ),
-          const SizedBox(height: 8),
-          Text(
-            value,
-            style: const TextStyle(
-              color: AppColors.textDark,
-              fontSize: 22,
-              fontWeight: FontWeight.w900,
+          const SizedBox(height: 6),
+          FittedBox(
+            child: Text(
+              value,
+              style: const TextStyle(
+                color: AppColors.textDark,
+                fontSize: 21,
+                fontWeight: FontWeight.w900,
+              ),
             ),
           ),
           const SizedBox(height: 3),
-          Text(
-            title,
-            style: const TextStyle(
-              color: AppColors.textGrey,
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
+          FittedBox(
+            child: Text(
+              title,
+              style: const TextStyle(
+                color: AppColors.textGrey,
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+              ),
             ),
           ),
         ],
