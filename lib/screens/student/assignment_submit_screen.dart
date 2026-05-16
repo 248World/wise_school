@@ -28,6 +28,11 @@ class _AssignmentSubmitScreenState extends State<AssignmentSubmitScreen> {
   String existingSubmissionId = '';
   dynamic existingSubmittedAt;
 
+  String studentId = '';
+  String studentName = '';
+  String studentClassId = '';
+  String studentClassName = '';
+
   @override
   void initState() {
     super.initState();
@@ -46,17 +51,33 @@ class _AssignmentSubmitScreenState extends State<AssignmentSubmitScreen> {
   Future<void> loadExistingSubmission() async {
     try {
       final authProvider = context.read<AuthProvider>();
-      final studentId = authProvider.userId ?? '';
+
+      studentId = authProvider.userId ?? '';
+      studentName = authProvider.fullName ?? 'Student';
+
       final assignmentId = widget.assignment['id'] ?? '';
 
-      if (studentId.isEmpty || assignmentId.isEmpty) {
-        if (!mounted) return;
+      if (studentId.isEmpty || assignmentId.toString().isEmpty) {
+        throw Exception('Invalid student or assignment');
+      }
 
-        setState(() {
-          isLoading = false;
-        });
+      final userDoc = await firestore.collection('users').doc(studentId).get();
 
-        return;
+      if (userDoc.exists) {
+        final userData = userDoc.data();
+
+        studentClassId = userData?['classId'] ?? '';
+        studentClassName = userData?['className'] ?? '';
+      }
+
+      final assignmentClassId = (widget.assignment['classId'] ?? '').toString();
+
+      if (studentClassId.isNotEmpty &&
+          assignmentClassId.isNotEmpty &&
+          studentClassId != assignmentClassId) {
+        throw Exception(
+          'This assignment does not belong to your current class.',
+        );
       }
 
       final snapshot = await firestore
@@ -94,11 +115,7 @@ class _AssignmentSubmitScreenState extends State<AssignmentSubmitScreen> {
     final comment = commentController.text.trim();
 
     if (comment.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please write a comment before submitting'),
-        ),
-      );
+      showSnackBar('Please write a comment before submitting');
       return;
     }
 
@@ -107,14 +124,38 @@ class _AssignmentSubmitScreenState extends State<AssignmentSubmitScreen> {
         isSaving = true;
       });
 
-      final authProvider = context.read<AuthProvider>();
-
-      final studentId = authProvider.userId ?? '';
-      final studentName = authProvider.fullName ?? 'Student';
-      final assignmentId = widget.assignment['id'] ?? '';
+      final assignmentId = (widget.assignment['id'] ?? '').toString();
 
       if (studentId.isEmpty || assignmentId.isEmpty) {
         throw Exception('Invalid student or assignment');
+      }
+
+      final assignmentClassId = (widget.assignment['classId'] ?? '').toString();
+
+      if (studentClassId.isNotEmpty &&
+          assignmentClassId.isNotEmpty &&
+          studentClassId != assignmentClassId) {
+        throw Exception(
+          'This assignment does not belong to your current class.',
+        );
+      }
+
+      final freshSnapshot = await firestore
+          .collection('assignment_submissions')
+          .where('assignmentId', isEqualTo: assignmentId)
+          .where('studentId', isEqualTo: studentId)
+          .limit(1)
+          .get();
+
+      String submissionIdToUpdate = existingSubmissionId;
+      dynamic submittedAtToKeep = existingSubmittedAt;
+
+      if (freshSnapshot.docs.isNotEmpty) {
+        final doc = freshSnapshot.docs.first;
+        final data = doc.data();
+
+        submissionIdToUpdate = doc.id;
+        submittedAtToKeep = data['submittedAt'];
       }
 
       final submissionData = {
@@ -122,27 +163,31 @@ class _AssignmentSubmitScreenState extends State<AssignmentSubmitScreen> {
         'assignmentTitle': widget.assignment['title'] ?? '',
         'studentId': studentId,
         'studentName': studentName,
-        'classId': widget.assignment['classId'] ?? '',
-        'className': widget.assignment['className'] ?? '',
+        'classId': widget.assignment['classId'] ?? studentClassId,
+        'className': widget.assignment['className'] ?? studentClassName,
         'subjectId': widget.assignment['subjectId'] ?? '',
         'subjectName': widget.assignment['subjectName'] ?? '',
         'teacherId': widget.assignment['teacherId'] ?? '',
         'teacherName': widget.assignment['teacherName'] ?? '',
         'comment': comment,
         'status': 'Submitted',
-        'submittedAt': existingSubmissionId.isEmpty
-            ? FieldValue.serverTimestamp()
-            : existingSubmittedAt,
         'updatedAt': FieldValue.serverTimestamp(),
       };
 
-      if (existingSubmissionId.isEmpty) {
-        await firestore.collection('assignment_submissions').add(submissionData);
+      if (submissionIdToUpdate.isEmpty) {
+        await firestore.collection('assignment_submissions').add({
+          ...submissionData,
+          'submittedAt': FieldValue.serverTimestamp(),
+          'createdAt': FieldValue.serverTimestamp(),
+        });
       } else {
         await firestore
             .collection('assignment_submissions')
-            .doc(existingSubmissionId)
-            .update(submissionData);
+            .doc(submissionIdToUpdate)
+            .update({
+          ...submissionData,
+          'submittedAt': submittedAtToKeep ?? FieldValue.serverTimestamp(),
+        });
       }
 
       if (!mounted) return;
@@ -155,13 +200,7 @@ class _AssignmentSubmitScreenState extends State<AssignmentSubmitScreen> {
         isSaving = false;
       });
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            error.toString().replaceAll('Exception: ', ''),
-          ),
-        ),
-      );
+      showSnackBar(error.toString().replaceAll('Exception: ', ''));
     }
   }
 
@@ -174,14 +213,311 @@ class _AssignmentSubmitScreenState extends State<AssignmentSubmitScreen> {
     return 'No due date';
   }
 
-  @override
-  Widget build(BuildContext context) {
+  String formatSubmittedAt(dynamic submittedAt) {
+    if (submittedAt is Timestamp) {
+      final date = submittedAt.toDate();
+      return '${date.day}/${date.month}/${date.year}';
+    }
+
+    return 'Already submitted';
+  }
+
+  Widget pngIconBox({
+    required String imagePath,
+    required IconData fallbackIcon,
+    Color color = AppColors.primaryBlue,
+    double size = 54,
+    double padding = 11,
+  }) {
+    return Container(
+      height: size,
+      width: size,
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(size * 0.36),
+      ),
+      child: Padding(
+        padding: EdgeInsets.all(padding),
+        child: Image.asset(
+          imagePath,
+          fit: BoxFit.contain,
+          errorBuilder: (context, error, stackTrace) {
+            return Icon(
+              fallbackIcon,
+              color: color,
+              size: size * 0.52,
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  Widget smallStatusChip({
+    required String text,
+    required Color color,
+  }) {
+    return Container(
+      constraints: const BoxConstraints(
+        maxWidth: 190,
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Text(
+        text,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(
+          color: color,
+          fontWeight: FontWeight.w800,
+          fontSize: 12,
+        ),
+      ),
+    );
+  }
+
+  Widget detailLine({
+    required IconData icon,
+    required String text,
+  }) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(
+          icon,
+          color: AppColors.textLight,
+          size: 16,
+        ),
+        const SizedBox(width: 6),
+        Expanded(
+          child: Text(
+            text,
+            style: const TextStyle(
+              color: AppColors.textGrey,
+              height: 1.35,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget assignmentDetailsCard() {
     final title = widget.assignment['title'] ?? 'Assignment';
     final description = widget.assignment['description'] ?? '';
     final subjectName = widget.assignment['subjectName'] ?? '';
     final className = widget.assignment['className'] ?? '';
     final teacherName = widget.assignment['teacherName'] ?? '';
     final dueDate = widget.assignment['dueDate'];
+    final alreadySubmitted = existingSubmissionId.isNotEmpty;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: AppColors.border),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.045),
+            blurRadius: 18,
+            offset: const Offset(0, 10),
+          ),
+        ],
+      ),
+      child: Stack(
+        children: [
+          Positioned(
+            top: -26,
+            right: -24,
+            child: Container(
+              height: 82,
+              width: 82,
+              decoration: BoxDecoration(
+                color: AppColors.primaryBlue.withValues(alpha: 0.045),
+                shape: BoxShape.circle,
+              ),
+            ),
+          ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  pngIconBox(
+                    imagePath: 'assets/icons/assignments.png',
+                    fallbackIcon: Icons.assignment_outlined,
+                    size: 56,
+                    padding: 11,
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          title,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 22,
+                            fontWeight: FontWeight.w900,
+                            color: AppColors.textDark,
+                            height: 1.2,
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: [
+                            smallStatusChip(
+                              text: subjectName.isEmpty
+                                  ? 'No subject'
+                                  : subjectName,
+                              color: AppColors.primaryBlue,
+                            ),
+                            smallStatusChip(
+                              text: 'Due: ${formatDueDate(dueDate)}',
+                              color: AppColors.softGreen,
+                            ),
+                            smallStatusChip(
+                              text: alreadySubmitted
+                                  ? 'Submitted'
+                                  : 'Not submitted',
+                              color: alreadySubmitted
+                                  ? AppColors.softGreen
+                                  : AppColors.danger,
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
+              detailLine(
+                icon: Icons.class_outlined,
+                text: className.isEmpty ? 'No class' : 'Class: $className',
+              ),
+              const SizedBox(height: 6),
+              detailLine(
+                icon: Icons.person_outline,
+                text: teacherName.isEmpty
+                    ? 'Teacher not assigned'
+                    : 'Teacher: $teacherName',
+              ),
+              if (alreadySubmitted) ...[
+                const SizedBox(height: 6),
+                detailLine(
+                  icon: Icons.check_circle_outline,
+                  text: 'Submitted: ${formatSubmittedAt(existingSubmittedAt)}',
+                ),
+              ],
+              if (description.toString().isNotEmpty) ...[
+                const SizedBox(height: 14),
+                Text(
+                  description,
+                  style: const TextStyle(
+                    color: AppColors.textDark,
+                    height: 1.5,
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget commentCard() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: AppColors.border),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.035),
+            blurRadius: 14,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              pngIconBox(
+                imagePath: 'assets/icons/messages.png',
+                fallbackIcon: Icons.comment_outlined,
+                size: 46,
+                padding: 10,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  existingSubmissionId.isEmpty
+                      ? 'Submit Your Work'
+                      : 'Update Your Work',
+                  style: const TextStyle(
+                    color: AppColors.textDark,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          TextField(
+            controller: commentController,
+            minLines: 6,
+            maxLines: 10,
+            decoration: const InputDecoration(
+              labelText: 'Comment to teacher',
+              hintText: 'Example: Sir/Madam, I have completed the assignment.',
+              prefixIcon: Icon(Icons.comment_outlined),
+            ),
+          ),
+          const SizedBox(height: 12),
+          const Text(
+            'File upload is disabled for now. This submission will save your comment and status.',
+            style: TextStyle(
+              color: AppColors.textGrey,
+              fontSize: 13,
+              height: 1.4,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void showSnackBar(String message) {
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final submitLabel =
+        existingSubmissionId.isEmpty ? 'Submit Work' : 'Update Work';
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -208,132 +544,50 @@ class _AssignmentSubmitScreenState extends State<AssignmentSubmitScreen> {
                     ),
                   )
                 : SingleChildScrollView(
-                    padding: const EdgeInsets.all(18),
+                    padding: const EdgeInsets.fromLTRB(18, 18, 18, 100),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.all(18),
-                          decoration: BoxDecoration(
-                            color: AppColors.white,
-                            borderRadius: BorderRadius.circular(20),
-                            border: Border.all(color: AppColors.border),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withValues(alpha: 0.04),
-                                blurRadius: 10,
-                                offset: const Offset(0, 5),
-                              ),
-                            ],
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                title,
-                                style: const TextStyle(
-                                  fontSize: 22,
-                                  fontWeight: FontWeight.bold,
-                                  color: AppColors.textDark,
-                                ),
-                              ),
-                              const SizedBox(height: 10),
-                              Text(
-                                subjectName.isEmpty
-                                    ? 'No subject'
-                                    : 'Subject: $subjectName',
-                                style: const TextStyle(
-                                  color: AppColors.textGrey,
-                                ),
-                              ),
-                              const SizedBox(height: 5),
-                              Text(
-                                className.isEmpty
-                                    ? 'No class'
-                                    : 'Class: $className',
-                                style: const TextStyle(
-                                  color: AppColors.textGrey,
-                                ),
-                              ),
-                              const SizedBox(height: 5),
-                              Text(
-                                teacherName.isEmpty
-                                    ? 'Teacher not assigned'
-                                    : 'Teacher: $teacherName',
-                                style: const TextStyle(
-                                  color: AppColors.textGrey,
-                                ),
-                              ),
-                              const SizedBox(height: 5),
-                              Text(
-                                'Due: ${formatDueDate(dueDate)}',
-                                style: const TextStyle(
-                                  color: AppColors.primaryBlue,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              const SizedBox(height: 14),
-                              Text(
-                                description,
-                                style: const TextStyle(
-                                  color: AppColors.textDark,
-                                  height: 1.5,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
+                        assignmentDetailsCard(),
                         const SizedBox(height: 18),
-                        TextField(
-                          controller: commentController,
-                          minLines: 6,
-                          maxLines: 10,
-                          decoration: const InputDecoration(
-                            labelText: 'Comment to teacher',
-                            hintText:
-                                'Example: Sir/Madam, I have completed the assignment.',
-                            prefixIcon: Icon(Icons.comment_outlined),
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        const Text(
-                          'File upload is disabled for now because Firebase Storage requires upgrading the project plan. This submission will save your comment and status.',
-                          style: TextStyle(
-                            color: AppColors.textGrey,
-                            fontSize: 13,
-                            height: 1.4,
-                          ),
-                        ),
-                        const SizedBox(height: 24),
-                        SizedBox(
-                          width: double.infinity,
-                          height: 52,
-                          child: ElevatedButton.icon(
-                            onPressed: isSaving ? null : submitAssignment,
-                            icon: isSaving
-                                ? const SizedBox(
-                                    height: 20,
-                                    width: 20,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                      color: AppColors.white,
-                                    ),
-                                  )
-                                : const Icon(Icons.send_outlined),
-                            label: Text(
-                              isSaving
-                                  ? 'Submitting...'
-                                  : existingSubmissionId.isEmpty
-                                      ? 'Submit Work'
-                                      : 'Update Work',
-                            ),
-                          ),
-                        ),
+                        commentCard(),
                       ],
                     ),
                   ),
       ),
+      bottomNavigationBar: errorMessage != null || isLoading
+          ? null
+          : SafeArea(
+              child: Container(
+                padding: const EdgeInsets.all(18),
+                decoration: const BoxDecoration(
+                  color: AppColors.white,
+                  border: Border(
+                    top: BorderSide(color: AppColors.border),
+                  ),
+                ),
+                child: SizedBox(
+                  width: double.infinity,
+                  height: 52,
+                  child: ElevatedButton.icon(
+                    onPressed: isSaving ? null : submitAssignment,
+                    icon: isSaving
+                        ? const SizedBox(
+                            height: 20,
+                            width: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: AppColors.white,
+                            ),
+                          )
+                        : const Icon(Icons.send_outlined),
+                    label: Text(
+                      isSaving ? 'Submitting...' : submitLabel,
+                    ),
+                  ),
+                ),
+              ),
+            ),
     );
   }
 }
