@@ -443,7 +443,8 @@ class _ChildOverviewScreenState extends State<ChildOverviewScreen> {
         'Attendance data is not available yet, so the parent should wait for teacher updates.',
       );
     } else {
-      final percent = ((attendancePresent + attendanceLate) / attendanceTotal) * 100;
+      final percent =
+          ((attendancePresent + attendanceLate) / attendanceTotal) * 100;
 
       if (percent >= 80) {
         summaryParts.add(
@@ -645,7 +646,9 @@ class _ChildOverviewScreenState extends State<ChildOverviewScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      childName.toString().isEmpty ? 'Child Overview' : childName,
+                      childName.toString().isEmpty
+                          ? 'Child Overview'
+                          : childName,
                       style: const TextStyle(
                         color: AppColors.white,
                         fontSize: 24,
@@ -886,7 +889,7 @@ class _ChildOverviewScreenState extends State<ChildOverviewScreen> {
     Color color = AppColors.primaryBlue,
   }) {
     return Container(
-      padding: const EdgeInsets.all(15),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: AppColors.white,
         borderRadius: BorderRadius.circular(24),
@@ -920,22 +923,22 @@ class _ChildOverviewScreenState extends State<ChildOverviewScreen> {
                 imagePath: imagePath,
                 fallbackIcon: icon,
                 color: color,
-                size: 48,
-                padding: 10,
+                size: 44,
+                padding: 9,
               ),
-              const Spacer(),
-              Text(
-                value,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: AppColors.textDark,
-                  fontSize: 24,
-                  fontWeight: FontWeight.w900,
-                  height: 1.1,
+              const SizedBox(height: 10),
+              FittedBox(
+                child: Text(
+                  value,
+                  style: const TextStyle(
+                    color: AppColors.textDark,
+                    fontSize: 22,
+                    fontWeight: FontWeight.w900,
+                    height: 1.1,
+                  ),
                 ),
               ),
-              const SizedBox(height: 5),
+              const SizedBox(height: 4),
               Text(
                 title,
                 maxLines: 1,
@@ -943,17 +946,20 @@ class _ChildOverviewScreenState extends State<ChildOverviewScreen> {
                 style: const TextStyle(
                   color: AppColors.textDark,
                   fontWeight: FontWeight.w800,
+                  fontSize: 13,
                 ),
               ),
-              const SizedBox(height: 4),
-              Text(
-                subtitle,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: AppColors.textGrey,
-                  fontSize: 12,
-                  height: 1.3,
+              const SizedBox(height: 3),
+              Expanded(
+                child: Text(
+                  subtitle,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: AppColors.textGrey,
+                    fontSize: 11,
+                    height: 1.25,
+                  ),
                 ),
               ),
             ],
@@ -978,7 +984,7 @@ class _ChildOverviewScreenState extends State<ChildOverviewScreen> {
       physics: const NeverScrollableScrollPhysics(),
       mainAxisSpacing: 14,
       crossAxisSpacing: 14,
-      childAspectRatio: 1.25,
+      childAspectRatio: 0.95,
       children: [
         statCard(
           title: 'Attendance',

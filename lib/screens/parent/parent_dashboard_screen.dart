@@ -14,7 +14,6 @@ import '../common/profile_screen.dart';
 import '../student/results_screen.dart';
 import '../student/timetable_screen.dart';
 import '../teacher/assignments_screen.dart';
-import '../teacher/attendance_screen.dart';
 import 'child_overview_screen.dart';
 import 'fees_screen.dart';
 
@@ -36,11 +35,14 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
   bool isLoadingStats = true;
 
   String parentId = '';
+  String parentName = '';
 
   int childrenCount = 0;
   int assignmentsCount = 0;
   int feesCount = 0;
   int notificationsCount = 0;
+  int resultsCount = 0;
+  int attendanceCount = 0;
 
   @override
   void initState() {
@@ -55,6 +57,13 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
     try {
       final authProvider = context.read<AuthProvider>();
       parentId = authProvider.userId ?? '';
+      parentName = authProvider.fullName ?? widget.displayName;
+
+      if (!mounted) return;
+
+      setState(() {
+        isLoadingStats = true;
+      });
 
       if (parentId.isEmpty) {
         if (!mounted) return;
@@ -83,6 +92,8 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
 
       int loadedAssignments = 0;
       int loadedFees = 0;
+      int loadedResults = 0;
+      int loadedAttendance = 0;
 
       for (final classId in classIds) {
         final assignmentSnapshot = await firestore
@@ -99,7 +110,19 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
             .where('studentId', isEqualTo: childId)
             .get();
 
+        final marksSnapshot = await firestore
+            .collection('marks')
+            .where('studentId', isEqualTo: childId)
+            .get();
+
+        final attendanceSnapshot = await firestore
+            .collection('attendance')
+            .where('studentId', isEqualTo: childId)
+            .get();
+
         loadedFees += feesSnapshot.docs.length;
+        loadedResults += marksSnapshot.docs.length;
+        loadedAttendance += attendanceSnapshot.docs.length;
       }
 
       final notificationsSnapshot = await firestore
@@ -114,6 +137,8 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
         childrenCount = childrenSnapshot.docs.length;
         assignmentsCount = loadedAssignments;
         feesCount = loadedFees;
+        resultsCount = loadedResults;
+        attendanceCount = loadedAttendance;
         notificationsCount = notificationsSnapshot.docs.length;
         isLoadingStats = false;
       });
@@ -131,7 +156,114 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
     return value.toString();
   }
 
+  void openModule(String title) {
+    if (title == 'Announcements') {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => const AnnouncementsScreen(role: 'Parent'),
+        ),
+      );
+      return;
+    }
+
+    if (title == 'Assignments') {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => const AssignmentsScreen(role: 'Parent'),
+        ),
+      );
+      return;
+    }
+
+    if (title == 'Attendance') {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => const ChildOverviewScreen(),
+        ),
+      );
+      return;
+    }
+
+    if (title == 'Child Overview') {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => const ChildOverviewScreen(),
+        ),
+      );
+      return;
+    }
+
+    if (title == 'Fees') {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => const FeesScreen(role: 'Parent'),
+        ),
+      );
+      return;
+    }
+
+    if (title == 'Messaging') {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => const MessagesScreen(
+            role: 'Parent',
+            targetRole: 'Admin',
+          ),
+        ),
+      );
+      return;
+    }
+
+    if (title == 'Notifications') {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => const NotificationsScreen(role: 'Parent'),
+        ),
+      );
+      return;
+    }
+
+    if (title == 'Profile') {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => const ProfileScreen(role: 'Parent'),
+        ),
+      );
+      return;
+    }
+
+    if (title == 'Results') {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => const ResultsScreen(),
+        ),
+      );
+      return;
+    }
+
+    if (title == 'Timetable') {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => const TimetableScreen(role: 'Parent'),
+        ),
+      );
+      return;
+    }
+  }
+
   Widget headerCard() {
+    final nameToShow = parentName.isEmpty ? widget.displayName : parentName;
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(20),
@@ -205,7 +337,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Welcome, ${widget.displayName}',
+                      'Welcome, $nameToShow',
                       style: const TextStyle(
                         color: AppColors.white,
                         fontSize: 24,
@@ -215,7 +347,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
                     ),
                     const SizedBox(height: 6),
                     Text(
-                      'Follow your child’s timetable, results, fees, attendance, and updates.',
+                      'Follow your child’s timetable, results, fees, attendance, assignments, and school updates.',
                       style: TextStyle(
                         color: AppColors.white.withValues(alpha: 0.85),
                         fontSize: 13,
@@ -232,23 +364,56 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
     );
   }
 
+  Widget noChildNotice() {
+    if (childrenCount > 0 || isLoadingStats) {
+      return const SizedBox();
+    }
+
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(top: 16),
+      padding: const EdgeInsets.all(15),
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: AppColors.border),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.035),
+            blurRadius: 14,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: const Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(
+            Icons.info_outline,
+            color: AppColors.primaryBlue,
+          ),
+          SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'No child is assigned to your parent account yet. Some modules may appear empty until Admin assigns a student to you.',
+              style: TextStyle(
+                color: AppColors.textGrey,
+                height: 1.45,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final modules = [
       {
-        'title': 'Child Overview',
-        'icon': Icons.child_care_outlined,
-        'imagePath': 'assets/icons/child_overview.png',
-      },
-      {
-        'title': 'Timetable',
-        'icon': Icons.calendar_month_outlined,
-        'imagePath': 'assets/icons/timetable.png',
-      },
-      {
-        'title': 'Attendance',
-        'icon': Icons.fact_check_outlined,
-        'imagePath': 'assets/icons/attendance.png',
+        'title': 'Announcements',
+        'icon': Icons.campaign_outlined,
+        'imagePath': 'assets/icons/announcements.png',
       },
       {
         'title': 'Assignments',
@@ -256,19 +421,19 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
         'imagePath': 'assets/icons/assignments.png',
       },
       {
+        'title': 'Attendance',
+        'icon': Icons.fact_check_outlined,
+        'imagePath': 'assets/icons/attendance.png',
+      },
+      {
+        'title': 'Child Overview',
+        'icon': Icons.child_care_outlined,
+        'imagePath': 'assets/icons/child_overview.png',
+      },
+      {
         'title': 'Fees',
         'icon': Icons.account_balance_wallet_outlined,
         'imagePath': 'assets/icons/fees.png',
-      },
-      {
-        'title': 'Results',
-        'icon': Icons.bar_chart_outlined,
-        'imagePath': 'assets/icons/results.png',
-      },
-      {
-        'title': 'Announcements',
-        'icon': Icons.campaign_outlined,
-        'imagePath': 'assets/icons/announcements.png',
       },
       {
         'title': 'Messaging',
@@ -279,7 +444,23 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
         'title': 'Notifications',
         'icon': Icons.notifications_outlined,
         'imagePath': 'assets/icons/notifications.png',
-        'badgeText': notificationsCount > 0 ? notificationsCount.toString() : '',
+        'badgeText':
+            notificationsCount > 0 ? notificationsCount.toString() : null,
+      },
+      {
+        'title': 'Profile',
+        'icon': Icons.account_circle_outlined,
+        'imagePath': 'assets/icons/profile.png',
+      },
+      {
+        'title': 'Results',
+        'icon': Icons.bar_chart_outlined,
+        'imagePath': 'assets/icons/results.png',
+      },
+      {
+        'title': 'Timetable',
+        'icon': Icons.calendar_month_outlined,
+        'imagePath': 'assets/icons/timetable.png',
       },
     ];
 
@@ -301,174 +482,84 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
         ],
       ),
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(18),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              headerCard(),
-
-              const SizedBox(height: 22),
-
-              GridView.count(
-                crossAxisCount: 2,
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                mainAxisSpacing: 14,
-                crossAxisSpacing: 14,
-                childAspectRatio: 1.45,
-                children: [
-                  DashboardCard(
-                    title: 'Children',
-                    value: statValue(childrenCount),
-                    icon: Icons.child_care_outlined,
-                    imagePath: 'assets/icons/children.png',
-                  ),
-                  DashboardCard(
-                    title: 'Assignments',
-                    value: statValue(assignmentsCount),
-                    icon: Icons.assignment_outlined,
-                    imagePath: 'assets/icons/assignments.png',
-                  ),
-                  DashboardCard(
-                    title: 'Fees',
-                    value: statValue(feesCount),
-                    icon: Icons.account_balance_wallet_outlined,
-                    imagePath: 'assets/icons/fees.png',
-                  ),
-                  DashboardCard(
-                    title: 'Unread Notices',
-                    value: statValue(notificationsCount),
-                    icon: Icons.notifications_outlined,
-                    imagePath: 'assets/icons/notifications.png',
-                  ),
-                ],
-              ),
-
-              const SizedBox(height: 26),
-
-              const SectionTitle(
-                title: 'Parent Modules',
-                icon: Icons.dashboard_outlined,
-                imagePath: 'assets/icons/modules.png',
-              ),
-
-              const SizedBox(height: 14),
-
-              GridView.builder(
-                itemCount: modules.length,
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        child: RefreshIndicator(
+          onRefresh: loadDashboardStats,
+          child: SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.all(18),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                headerCard(),
+                noChildNotice(),
+                const SizedBox(height: 22),
+                GridView.count(
                   crossAxisCount: 2,
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
                   mainAxisSpacing: 14,
                   crossAxisSpacing: 14,
-                  childAspectRatio: 1.05,
+                  childAspectRatio: 1.45,
+                  children: [
+                    DashboardCard(
+                      title: 'Children',
+                      value: statValue(childrenCount),
+                      icon: Icons.child_care_outlined,
+                      imagePath: 'assets/icons/children.png',
+                    ),
+                    DashboardCard(
+                      title: 'Assignments',
+                      value: statValue(assignmentsCount),
+                      icon: Icons.assignment_outlined,
+                      imagePath: 'assets/icons/assignments.png',
+                    ),
+                    DashboardCard(
+                      title: 'Attendance',
+                      value: statValue(attendanceCount),
+                      icon: Icons.fact_check_outlined,
+                      imagePath: 'assets/icons/attendance.png',
+                    ),
+                    DashboardCard(
+                      title: 'Fees',
+                      value: statValue(feesCount),
+                      icon: Icons.account_balance_wallet_outlined,
+                      imagePath: 'assets/icons/fees.png',
+                    ),
+                  ],
                 ),
-                itemBuilder: (context, index) {
-                  final title = modules[index]['title'] as String;
+                const SizedBox(height: 26),
+                const SectionTitle(
+                  title: 'Parent Modules',
+                ),
+                const SizedBox(height: 14),
+                GridView.builder(
+                  itemCount: modules.length,
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 2,
+                    mainAxisSpacing: 14,
+                    crossAxisSpacing: 14,
+                    childAspectRatio: 1.05,
+                  ),
+                  itemBuilder: (context, index) {
+                    final module = modules[index];
+                    final title = module['title'] as String;
 
-                  return ModuleCard(
-                    title: title,
-                    icon: modules[index]['icon'] as IconData,
-                    imagePath: modules[index]['imagePath'] as String,
-                    badgeText: modules[index]['badgeText'] as String?,
-                    onTap: () {
-                      if (title == 'Announcements') {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) =>
-                                const AnnouncementsScreen(role: 'Parent'),
-                          ),
-                        );
-                      }
-
-                      if (title == 'Assignments') {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) =>
-                                const AssignmentsScreen(role: 'Parent'),
-                          ),
-                        );
-                      }
-
-                      if (title == 'Attendance') {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) =>
-                                const AttendanceScreen(role: 'Parent'),
-                          ),
-                        );
-                      }
-
-                      if (title == 'Child Overview') {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const ChildOverviewScreen(),
-                          ),
-                        );
-                      }
-
-                      if (title == 'Fees') {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const FeesScreen(role: 'Parent'),
-                          ),
-                        );
-                      }
-
-                      if (title == 'Messaging') {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const MessagesScreen(
-                              role: 'Parent',
-                              targetRole: 'Admin',
-                            ),
-                          ),
-                        );
-                      }
-
-                      if (title == 'Notifications') {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) =>
-                                const NotificationsScreen(role: 'Parent'),
-                          ),
-                        );
-                      }
-
-                      if (title == 'Results') {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const ResultsScreen(),
-                          ),
-                        );
-                      }
-
-                      if (title == 'Timetable') {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) =>
-                                const TimetableScreen(role: 'Parent'),
-                          ),
-                        );
-                      }
-                    },
-                  );
-                },
-              ),
-
-              const SizedBox(height: 20),
-            ],
+                    return ModuleCard(
+                      title: title,
+                      icon: module['icon'] as IconData,
+                      imagePath: module['imagePath'] as String,
+                      badgeText: module['badgeText'] as String?,
+                      onTap: () {
+                        openModule(title);
+                      },
+                    );
+                  },
+                ),
+                const SizedBox(height: 20),
+              ],
+            ),
           ),
         ),
       ),
@@ -484,27 +575,30 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
             Navigator.push(
               context,
               MaterialPageRoute(
-                builder: (_) => const TimetableScreen(role: 'Parent'),
+                builder: (_) => const ChildOverviewScreen(),
               ),
             );
+            return;
           }
 
           if (index == 2) {
             Navigator.push(
               context,
               MaterialPageRoute(
-                builder: (_) => const FeesScreen(role: 'Parent'),
+                builder: (_) => const AssignmentsScreen(role: 'Parent'),
               ),
             );
+            return;
           }
 
           if (index == 3) {
             Navigator.push(
               context,
               MaterialPageRoute(
-                builder: (_) => const NotificationsScreen(role: 'Parent'),
+                builder: (_) => const FeesScreen(role: 'Parent'),
               ),
             );
+            return;
           }
 
           if (index == 4) {
@@ -514,6 +608,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
                 builder: (_) => const ProfileScreen(role: 'Parent'),
               ),
             );
+            return;
           }
         },
         items: const [
@@ -522,16 +617,16 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
             label: 'Home',
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.calendar_month_outlined),
-            label: 'Timetable',
+            icon: Icon(Icons.child_care_outlined),
+            label: 'Child',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.assignment_outlined),
+            label: 'Tasks',
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.account_balance_wallet_outlined),
             label: 'Fees',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.notifications_outlined),
-            label: 'Notices',
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.account_circle_outlined),
